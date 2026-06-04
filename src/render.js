@@ -77,7 +77,9 @@ md.core.ruler.push('heading_anchors', (state) => {
     let n = 1;
     while (used[unique]) unique = `${id}-${n++}`;
     used[unique] = true;
-    tokens[i].attrSet('id', unique);
+    // prefix so heading ids can never collide with the app's own element ids
+    // (e.g. a "## viewer" heading vs the <main id="viewer"> container)
+    tokens[i].attrSet('id', `pv-${unique}`);
   }
 });
 

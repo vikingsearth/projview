@@ -8,6 +8,11 @@ const viewerEl = $('viewer');
 const tocListEl = $('toc-list');
 
 let tocEntries = [];   // [{ id, el, link }]
+let spyLock = 0;       // timestamp until which scroll-spy yields to a click
+
+function setActive(current) {
+  for (const entry of tocEntries) entry.link.classList.toggle('active', entry === current);
+}
 
 export function buildToc() {
   const headings = [...contentEl.querySelectorAll('h1, h2, h3')].filter((h) => h.id);
@@ -23,22 +28,27 @@ export function buildToc() {
     const link = document.createElement('button');
     link.className = `toc-item lvl-${h.tagName.toLowerCase()}`;
     link.textContent = h.textContent;
-    link.addEventListener('click', () => scrollToFragment(h.id));
+    const entry = { id: h.id, el: h, link };
+    link.addEventListener('click', () => {
+      scrollToFragment(h.id);
+      setActive(entry);                       // clicked item wins immediately
+      spyLock = performance.now() + 700;      // and holds briefly against scroll-spy
+    });
     frag.appendChild(link);
-    tocEntries.push({ id: h.id, el: h, link });
+    tocEntries.push(entry);
   }
   tocListEl.replaceChildren(frag);
   updateScrollSpy();
 }
 
 function updateScrollSpy() {
-  if (!tocEntries.length) return;
+  if (!tocEntries.length || performance.now() < spyLock) return;   // a recent click wins
   const top = viewerEl.scrollTop + 90;
   let current = tocEntries[0];
   for (const entry of tocEntries) {
     if (entry.el.offsetTop <= top) current = entry; else break;
   }
-  for (const entry of tocEntries) entry.link.classList.toggle('active', entry === current);
+  setActive(current);
 }
 
 let spyRaf = 0;

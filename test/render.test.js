@@ -2,20 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderMarkdown, renderMermaid, renderFile } from '../src/render.js';
 
-test('headings get slug ids', () => {
-  assert.match(renderMarkdown('# Hello World'), /<h1[^>]*id="hello-world"/);
+test('headings get slug ids (pv- prefixed to avoid collisions)', () => {
+  assert.match(renderMarkdown('# Hello World'), /<h1[^>]*id="pv-hello-world"/);
 });
 
 test('explicit {#id} wins and the literal is stripped from output', () => {
   const html = renderMarkdown('## Env Overrides {#env-overrides}');
-  assert.match(html, /id="env-overrides"/);
+  assert.match(html, /id="pv-env-overrides"/);
   assert.doesNotMatch(html, /\{#env-overrides\}/);
 });
 
 test('duplicate heading text yields deduped ids', () => {
   const html = renderMarkdown('# Same\n\n# Same');
-  assert.match(html, /id="same"/);
-  assert.match(html, /id="same-1"/);
+  assert.match(html, /id="pv-same"/);
+  assert.match(html, /id="pv-same-1"/);
 });
 
 test('```mermaid fence becomes a .mermaid div, not a <pre>', () => {

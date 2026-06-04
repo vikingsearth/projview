@@ -37,7 +37,9 @@ export async function openFile(p, fragment, highlight) {
 }
 
 export function scrollToFragment(frag) {
-  const el = document.getElementById(frag);
+  // headings are rendered with a "pv-" id prefix (collision-proof); try that
+  // first, then fall back to a raw id and an already-prefixed value (TOC).
+  const el = document.getElementById(`pv-${frag}`) || document.getElementById(frag);
   // instant, not smooth: smooth scrollIntoView is a no-op on this overflow container
   if (el) el.scrollIntoView({ block: 'start' });
   else toast(`no section "#${frag}" on this page`);
