@@ -1,0 +1,5 @@
+flowchart LR
+  A[start] --> B{missing closing brace
+  B --> C[this will never parse]
+  C -->|no arrow target
+  %% intentionally broken mermaid to exercise the inline error card

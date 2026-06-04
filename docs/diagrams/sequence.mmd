@@ -1,0 +1,13 @@
+sequenceDiagram
+  autonumber
+  participant U as user
+  participant C as CLI
+  participant B as browser
+  U->>C: projview ./docs
+  C->>C: walk + index
+  C->>B: open localhost
+  B->>C: GET /api/tree
+  C-->>B: tree json
+  B->>C: GET /api/file?p=...
+  C-->>B: rendered html
+  Note over C,B: edit a file -> SSE -> live reload

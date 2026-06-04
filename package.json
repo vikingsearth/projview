@@ -1,0 +1,45 @@
+{
+  "name": "projview",
+  "version": "0.1.0",
+  "description": "Ephemeral local previewer for markdown + mermaid files in any directory",
+  "type": "module",
+  "bin": {
+    "projview": "bin/projview.js"
+  },
+  "scripts": {
+    "start": "node bin/projview.js",
+    "demo": "node bin/projview.js --demo",
+    "test": "node --test"
+  },
+  "files": [
+    "bin",
+    "src",
+    "public",
+    "docs"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "markdown",
+    "mermaid",
+    "preview",
+    "docs",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "Wikus Bergh (https://github.com/vikingsearth)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vikingsearth/projview.git"
+  },
+  "homepage": "https://github.com/vikingsearth/projview#readme",
+  "bugs": {
+    "url": "https://github.com/vikingsearth/projview/issues"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0"
+  }
+}

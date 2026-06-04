@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- we ship our own dark theme: tell the UA + Dark Reader to leave colors alone -->
+  <meta name="color-scheme" content="dark" />
+  <meta name="darkreader-lock" />
+  <title>projview</title>
+  <link rel="stylesheet" href="/vendor/hljs.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📓</text></svg>" />
+</head>
+<body class="toc-empty">
+  <aside id="sidebar">
+    <header id="brand">
+      <span class="logo">📓</span>
+      <div class="brand-text">
+        <strong id="root-name">projview</strong>
+        <small id="live-status"><span class="dot"></span> live</small>
+      </div>
+    </header>
+    <button id="open-palette" class="open-palette" title="search (⌘K)">
+      <span class="op-ico">🔎</span><span class="op-text">search…</span><kbd>⌘K</kbd>
+    </button>
+    <div id="tree" class="tree"></div>
+    <footer id="side-foot"><span id="file-count">0</span> files · ctrl-c to stop</footer>
+  </aside>
+
+  <main id="viewer">
+    <nav id="breadcrumb" hidden></nav>
+    <div id="content" class="markdown-body">
+      <div class="empty-state">
+        <div class="empty-emoji">👈</div>
+        <p>pick a file from the tree to preview it</p>
+      </div>
+    </div>
+  </main>
+
+  <aside id="toc">
+    <header class="toc-head">
+      <span>on this page</span>
+      <button id="toc-collapse" title="collapse">⟩</button>
+    </header>
+    <div id="toc-list"></div>
+  </aside>
+  <button id="toc-reopen" title="show outline">☰</button>
+
+  <div id="palette" class="palette" hidden>
+    <div class="palette-box">
+      <input id="palette-input" type="text" placeholder="search files + contents…" autocomplete="off" spellcheck="false" />
+      <div id="palette-results" class="palette-results"></div>
+      <div class="palette-foot">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> open</span>
+        <span><kbd>esc</kbd> close</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <div id="zoom" class="zoom-overlay" hidden>
+    <div class="zoom-hint">scroll to zoom · drag to pan · esc to close</div>
+    <div id="zoom-inner" class="zoom-inner"></div>
+  </div>
+
+  <script src="/vendor/mermaid.min.js"></script>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

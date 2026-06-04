@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant U as user
+  participant C as projview CLI
+  participant B as browser
+  U->>C: projview ./docs
+  C->>C: walk + index (in memory)
+  C->>B: open localhost
+  B->>C: GET /api/tree
+  C-->>B: file tree json
+  B->>C: GET /api/file?p=...
+  C-->>B: rendered html
+  Note over C,B: edit a file -> SSE -> live reload

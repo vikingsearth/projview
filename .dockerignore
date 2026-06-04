@@ -1,0 +1,7 @@
+node_modules
+.git
+*.tgz
+*.log
+.DS_Store
+.claude
+test

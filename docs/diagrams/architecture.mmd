@@ -1,0 +1,9 @@
+flowchart LR
+  subgraph cli[projview CLI]
+    walk[walk fs] --> tree[in-mem tree]
+  end
+  tree --> server[http server]
+  server -->|/api/tree| browser
+  server -->|/api/file| browser
+  server -. SSE .-> browser
+  browser --> render[rendered view]
