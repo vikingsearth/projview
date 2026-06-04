@@ -6,9 +6,14 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# install runtime deps first for better layer caching (deterministic from lockfile)
+# install runtime deps first for better layer caching (deterministic from lockfile).
+# optional CA secret lets the build succeed behind a TLS-intercepting proxy
+# (e.g. Netskope); pass it with:  docker build --secret id=cacert,src=nscacert.pem .
+# it is a no-op when absent (internal builders that already trust the CA), and
+# the cert is never written into an image layer.
 COPY package*.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
+RUN --mount=type=secret,id=cacert,required=false \
+    sh -c 'if [ -s /run/secrets/cacert ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/cacert; fi; npm ci --omit=dev --no-audit --no-fund'
 
 COPY . .
 

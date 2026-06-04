@@ -2,6 +2,7 @@ node_modules
 .git
 *.tgz
 *.log
+*.pem
 .DS_Store
 .claude
 test
