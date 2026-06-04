@@ -8,6 +8,7 @@ faults. use this tree while iterating on the tool.
 
 | area | doc | what it exercises |
 | --- | --- | --- |
+| **setup** | [**how to set up**](how-to-set-up.md) | install / clone / use as a library + links to the repo & npm |
 | start | [getting started](getting-started.md) | headings h1-h6, code, tables, anchors, a valid diagram |
 | guides | [installation](guides/installation.md) | relative links up/down, one dead link |
 | guides | [configuration](guides/configuration.md) | explicit `{#id}` anchors, a missing-anchor link |
