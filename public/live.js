@@ -5,7 +5,7 @@ import { state } from './store.js';
 import { loadTree } from './tree.js';
 import { openFile } from './viewer.js';
 
-const liveStatusEl = $('live-status');
+const versionEl = $('version');
 
 export function connectEvents() {
   const es = new EventSource('/api/events');
@@ -14,18 +14,12 @@ export function connectEvents() {
     if (path === state.currentPath) { pulse(); openFile(path); }
   });
   es.addEventListener('tree', async () => { pulse(); await loadTree(); });
-  es.onerror = () => setLive(false);
-  es.addEventListener('ready', () => setLive(true));
 }
 
-function setLive(on) {
-  liveStatusEl.classList.toggle('off', !on);
-  liveStatusEl.querySelector('.dot')?.classList.toggle('off', !on);
-}
-
+// brief flash of the version line as live-reload feedback
 let pulseTimer;
 function pulse() {
-  liveStatusEl.classList.add('pulse');
+  versionEl.classList.add('pulse');
   clearTimeout(pulseTimer);
-  pulseTimer = setTimeout(() => liveStatusEl.classList.remove('pulse'), 600);
+  pulseTimer = setTimeout(() => versionEl.classList.remove('pulse'), 700);
 }

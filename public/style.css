@@ -58,40 +58,23 @@ body {
 #brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 18px 16px;
+  gap: 11px;
+  padding: 16px 16px;
   border-bottom: 2px solid var(--surface0);
 }
 
-#brand .logo {
-  font-size: 28px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
-}
+#brand .logo svg { display: block; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35)); }
 
-.brand-text { display: flex; flex-direction: column; line-height: 1.2; }
-.brand-text strong { font-size: 17px; color: var(--lavender); letter-spacing: 0.2px; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+.wordmark { font-size: 17px; font-weight: 800; letter-spacing: 0.2px; }
+.wordmark .wm-proj { color: var(--lavender); }
+.wordmark .wm-view { color: var(--mauve); }
 
-#live-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--green);
-  font-size: 12px;
-  font-weight: 600;
-}
-#live-status .dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 8px var(--green);
-  transition: background 0.2s, box-shadow 0.2s;
-}
-#live-status.off { color: var(--overlay); }
-#live-status .dot.off { background: var(--overlay); box-shadow: none; }
-#live-status.pulse .dot { animation: blip 0.6s ease; }
-@keyframes blip {
-  0% { transform: scale(1); }
-  40% { transform: scale(2.2); }
-  100% { transform: scale(1); }
+.version { color: var(--overlay); font-size: 11px; font-weight: 500; letter-spacing: 0.3px; }
+.version.pulse { animation: vpulse 0.7s ease; }
+@keyframes vpulse {
+  0% { color: var(--green); }
+  100% { color: var(--overlay); }
 }
 
 .open-palette {

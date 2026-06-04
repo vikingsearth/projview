@@ -11,6 +11,7 @@ import { buildIndex, updateFile, removeFile, search } from './search.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
 // vendored client libs (mermaid bundle, hljs theme) live in public/vendor/ and
 // are served by the static handler below - no node_modules resolution needed.
 
@@ -72,7 +73,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1' } = {}
 
     // --- file tree ---
     if (pathname === '/api/tree') {
-      sendJson(res, { root: path.basename(root) || root, tree: buildTree(root) });
+      sendJson(res, { root: path.basename(root) || root, tree: buildTree(root), version: VERSION });
       return;
     }
 

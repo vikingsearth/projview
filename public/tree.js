@@ -7,16 +7,16 @@ import { openFile } from './viewer.js';
 
 const treeEl = $('tree');
 const fileCountEl = $('file-count');
-const rootNameEl = $('root-name');
+const versionEl = $('version');
 let fileCount = 0;
 
 export async function loadTree() {
   const res = await fetch('/api/tree');
-  const { root, tree } = await res.json();
+  const { root, tree, version } = await res.json();
   state.treeData = tree;
   state.rootName = root;
-  rootNameEl.textContent = root;
   document.title = `${root} · projview`;
+  if (version) versionEl.textContent = `version ${version}`;
   renderTree();
 }
 

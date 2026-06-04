@@ -14,10 +14,19 @@
 <body class="toc-empty">
   <aside id="sidebar">
     <header id="brand">
-      <span class="logo">📓</span>
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none">
+          <rect x="2" y="4.5" width="20" height="15" rx="4" stroke="#b4befe" stroke-width="1.8"/>
+          <line x1="8.5" y1="4.5" x2="8.5" y2="19.5" stroke="#b4befe" stroke-width="1.8"/>
+          <circle cx="13.4" cy="9.4" r="1.25" fill="#cba6f7"/>
+          <circle cx="18" cy="9.4" r="1.25" fill="#cba6f7"/>
+          <circle cx="15.7" cy="14.6" r="1.25" fill="#cba6f7"/>
+          <path d="M13.4 9.4 15.7 14.6 18 9.4" stroke="#cba6f7" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
       <div class="brand-text">
-        <strong id="root-name">projview</strong>
-        <small id="live-status"><span class="dot"></span> live</small>
+        <strong class="wordmark"><span class="wm-proj">proj</span><span class="wm-view">view</span></strong>
+        <small id="version" class="version"></small>
       </div>
     </header>
     <button id="open-palette" class="open-palette" title="search (⌘K)">
