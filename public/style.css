@@ -519,13 +519,11 @@ mark.search-hit {
   border: 1px solid var(--surface0);
 }
 .zoom-inner {
-  cursor: grab;
-  transform-origin: center center;
-  will-change: transform;
-  touch-action: none;
+  width: 88vw;
+  height: 84vh;
+  touch-action: none;   /* svg-pan-zoom owns the gestures */
 }
-.zoom-inner:active { cursor: grabbing; }
-.zoom-inner svg { max-width: 86vw; max-height: 82vh; }
+.zoom-inner svg { width: 100%; height: 100%; display: block; }
 
 /* scrollbars */
 ::-webkit-scrollbar { width: 11px; height: 11px; }

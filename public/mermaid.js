@@ -38,40 +38,48 @@ export async function runMermaid() {
   }
 }
 
-/* ---------- zoom overlay ---------- */
+/* ---------- zoom overlay (svg-pan-zoom: crisp vector zoom, pan, control bar) ---------- */
 
-let zoomState = { scale: 1, x: 0, y: 0 };
-let zoomDrag = null;
+const svgPanZoom = window.svgPanZoom;   // UMD global from /vendor/svg-pan-zoom.min.js
+let panzoom = null;                     // active instance, if any
 
-function applyZoom() {
-  zoomInnerEl.style.transform =
-    `translate(${zoomState.x}px, ${zoomState.y}px) scale(${zoomState.scale})`;
-}
 function openZoom(svgHtml) {
   if (!svgHtml) return;
   zoomInnerEl.innerHTML = svgHtml;
-  zoomState = { scale: 1, x: 0, y: 0 };
-  applyZoom();
+  const svg = zoomInnerEl.querySelector('svg');
+  if (!svg) return;
+
+  // hand sizing to svg-pan-zoom: fill the stage and drop mermaid's max-width cap,
+  // so zoom stays vector-crisp (no rasterised CSS-transform blur)
+  svg.removeAttribute('width');
+  svg.removeAttribute('height');
+  svg.style.maxWidth = 'none';
+  svg.style.width = '100%';
+  svg.style.height = '100%';
+
   zoomEl.hidden = false;
+  // wait two frames so the just-shown overlay is laid out before svg-pan-zoom
+  // measures it - a single rAF fires too early and it inits on a 0-size stage
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (zoomEl.hidden || !svg.isConnected) return;   // closed again before we got here
+    panzoom = svgPanZoom(svg, {
+      zoomEnabled: true,
+      panEnabled: true,
+      controlIconsEnabled: true,   // built-in zoom in / out / reset / fit bar
+      fit: true,
+      center: true,
+      minZoom: 0.2,
+      maxZoom: 30,
+      zoomScaleSensitivity: 0.3
+    });
+  }));
 }
-function closeZoom() { zoomEl.hidden = true; zoomInnerEl.innerHTML = ''; }
+
+function closeZoom() {
+  if (panzoom) { panzoom.destroy(); panzoom = null; }
+  zoomEl.hidden = true;
+  zoomInnerEl.innerHTML = '';
+}
 
 zoomEl.addEventListener('click', (e) => { if (e.target === zoomEl) closeZoom(); });
-zoomEl.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-  zoomState.scale = Math.min(8, Math.max(0.3, zoomState.scale * factor));
-  applyZoom();
-}, { passive: false });
-zoomInnerEl.addEventListener('pointerdown', (e) => {
-  zoomDrag = { x: e.clientX, y: e.clientY, ox: zoomState.x, oy: zoomState.y };
-  zoomInnerEl.setPointerCapture(e.pointerId);
-});
-zoomInnerEl.addEventListener('pointermove', (e) => {
-  if (!zoomDrag) return;
-  zoomState.x = zoomDrag.ox + (e.clientX - zoomDrag.x);
-  zoomState.y = zoomDrag.oy + (e.clientY - zoomDrag.y);
-  applyZoom();
-});
-zoomInnerEl.addEventListener('pointerup', () => { zoomDrag = null; });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !zoomEl.hidden) closeZoom(); });
