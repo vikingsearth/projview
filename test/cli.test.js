@@ -25,3 +25,20 @@ test('an unknown flag errors out (instead of starting a server)', () => {
     (err) => err.status === 1 && /unknown option/.test(String(err.stderr))
   );
 });
+
+test('search subcommand emits ranked JSON results', () => {
+  const out = JSON.parse(run(['search', 'mermaid', '--demo']));
+  assert.equal(out.query, 'mermaid');
+  assert.ok(Array.isArray(out.content) && out.content.length > 0);
+  assert.ok(out.content[0].snippets[0].line > 0);   // snippets carry line numbers
+});
+
+test('tree subcommand emits JSON tree with a file count', () => {
+  const out = JSON.parse(run(['tree', '--demo']));
+  assert.ok(Array.isArray(out.tree) && out.tree.length > 0);
+  assert.ok(out.files > 0);
+});
+
+test('search with no query exits non-zero', () => {
+  assert.throws(() => run(['search']), (err) => err.status === 1);
+});
