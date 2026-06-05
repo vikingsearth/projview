@@ -2,10 +2,12 @@
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { startServer } from '../src/server.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_DIR = path.join(__dirname, '..', 'docs');   // bundled sample docs
+const VERSION = JSON.parse(readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
 
 function parseArgs(argv) {
   const opts = {
@@ -20,7 +22,9 @@ function parseArgs(argv) {
     if (arg === '--port' || arg === '-p') opts.port = Number(argv[++i]) || opts.port;
     else if (arg === '--no-open') opts.open = false;
     else if (arg === '--demo') opts.demo = true;
+    else if (arg === '--version' || arg === '-v') opts.version = true;
     else if (arg === '--help' || arg === '-h') opts.help = true;
+    else if (arg.startsWith('-')) opts.unknown = arg;   // unrecognised flag -> error, don't treat as a path
     else rest.push(arg);
   }
   if (rest[0]) opts.root = path.resolve(process.cwd(), rest[0]);
@@ -49,15 +53,18 @@ options:
   -p, --port <n>    preferred port (default: 4321, climbs if taken)
       --demo        preview projview's bundled sample docs
       --no-open     do not auto-open the browser
+  -v, --version     print the version and exit
   -h, --help        show this help
 
 nothing is written to disk - ctrl-c and it's gone.`;
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
-  if (opts.help) {
-    console.log(HELP);
-    return;
+  if (opts.help) { console.log(HELP); return; }
+  if (opts.version) { console.log(VERSION); return; }
+  if (opts.unknown) {
+    console.error(`projview: unknown option "${opts.unknown}"\nrun "projview --help" for usage.`);
+    process.exit(1);
   }
 
   const { port, close } = await startServer(opts.root, { port: opts.port, host: opts.host });
