@@ -21,6 +21,22 @@ Renders a single file to HTML on demand. Query param `p` is the relative path.
 
 Server-sent events stream for live reload.
 
+## machine interface (CLI)
+
+Besides the HTTP server, two subcommands print JSON to stdout and exit - no
+server, no browser - for agents and scripts.
+
+### projview search
+
+`projview search "<query>" [path]` returns `{ query, files[], content[] }`.
+Filenames match fuzzily (subsequence); contents are ranked by term frequency with
+line-numbered snippets. See [the AI search test](../ai-tests/search.md).
+
+### projview tree
+
+`projview tree [path]` returns `{ root, files, tree[] }` - the same structure
+`/api/tree` serves.
+
 ## the walker
 
 ### ignored directories
@@ -59,7 +75,7 @@ Requested paths are resolved and confined to the root.
 
 ### tree nav
 
-Collapsible dirs, filter box, auto-expand on navigate.
+Collapsible dirs, cmd+K search palette, auto-expand on navigate.
 
 ### viewer
 

@@ -66,7 +66,7 @@ npm install
 npm run demo                 # preview the bundled docs/  (alias for --demo)
 npm start                    # index the current directory
 node bin/projview.js ./docs  # or call the CLI directly
-npm test                     # run the test suite (node:test, 23 tests)
+npm test                     # run the test suite (node:test, 29 tests)
 ```
 
 See the [project README](README.md) for the architecture and the
@@ -74,12 +74,27 @@ See the [project README](README.md) for the architecture and the
 
 ## CLI reference
 
+**Commands**
+
+| command | meaning |
+| --- | --- |
+| `projview [path]` | start the viewer (default) |
+| `projview search <query> [path]` | print ranked search results as JSON, then exit |
+| `projview tree [path]` | print the file tree as JSON, then exit |
+
+The `search` and `tree` subcommands are projview's **machine interface** - JSON on
+stdout, no server, no browser - built for agents and scripts. See
+[ai-tests/search.md](ai-tests/search.md) for a worked test.
+
+**Options**
+
 | argument / flag | meaning |
 | --- | --- |
 | `[path]` | directory to index (default: current directory) |
-| `--demo` | preview projview's own bundled sample docs |
+| `--demo` | use projview's own bundled sample docs (works with the subcommands too) |
 | `-p`, `--port <n>` | preferred port (default `4321`, climbs if taken) |
 | `--no-open` | don't auto-open the browser |
+| `-v`, `--version` | print the version and exit |
 | `-h`, `--help` | show help |
 
 **Environment variables** (handy for containers / servers):

@@ -26,6 +26,25 @@ projview ./docs --port 5000
 projview /path/to/notes --no-open
 ```
 
+## use it from scripts or an AI
+
+projview also has a **machine interface** - subcommands that print JSON to stdout
+and exit (no server, no browser), so an agent or script can query your docs:
+
+```bash
+projview search "<query>" [path]   # ranked: filename matches + in-content hits w/ line snippets
+projview tree [path]               # the file tree as JSON
+projview search "mermaid" --demo   # quick test on the bundled docs
+```
+
+```jsonc
+// projview search "live reload"
+{ "query": "live reload",
+  "files":   [ /* fuzzy filename matches: {path, name, score} */ ],
+  "content": [ { "path": "reference/api.md", "count": 4,
+                 "snippets": [ { "line": 68, "text": "### live reload" } ] } ] }
+```
+
 ## what it does
 
 | step | detail |

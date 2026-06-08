@@ -21,6 +21,7 @@ faults. use this tree while iterating on the tool.
 | edge | [syntax stress](edge-cases/syntax-stress.md) | gnarly markdown + inline broken fence |
 | edge | [faulty refs](edge-cases/faulty-refs.md) | **several dead links** on purpose |
 | edge | [buried file](edge-cases/deep/nested/buried.md) | deep nesting - indentation + auto-expand |
+| ai-tests | [search test](ai-tests/search.md) | AI-run test of the `projview search` machine interface |
 
 ## intentional faults (should NOT crash the app)
 
