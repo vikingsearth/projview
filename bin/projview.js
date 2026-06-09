@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import os from 'node:os';
-import { spawn, execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { startServer } from '../src/server.js';
 import { buildTree, countFiles } from '../src/walk.js';
 import { buildIndex, search } from '../src/search.js';
-import { resolveStoreConfig, createStore, isPersistent } from '../src/store.js';
+import { resolveStoreConfig, createStore, isPersistent, gitOrOsUser } from '../src/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_DIR = path.join(__dirname, '..', 'docs');   // bundled sample docs
@@ -87,14 +86,7 @@ const print = (obj) => process.stdout.write(JSON.stringify(obj, null, 2) + '\n')
 
 // Resolve the comment author: explicit flag > git user.name > OS username.
 // Agents pass --author (e.g. "claude") so AI-authored comments are distinguishable.
-function resolveAuthor(explicit) {
-  if (explicit) return explicit;
-  try {
-    const name = execSync('git config user.name', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-    if (name) return name;
-  } catch { /* no git / no user.name */ }
-  try { return os.userInfo().username || null; } catch { return null; }
-}
+const resolveAuthor = (explicit) => explicit || gitOrOsUser();
 
 // projview comment <add|resolve|reopen|rm> ...   (writes ride the store)
 async function cmdComment(args) {

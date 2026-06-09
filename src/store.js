@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { execSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 
 // node:sqlite is flagged "experimental" and emits a noisy warning on use; we
@@ -42,6 +43,12 @@ const CONFIG_FILE = path.join(HOME, 'config.json'); // default flags
 const keyFor = (root) => createHash('sha256').update(path.resolve(root)).digest('hex').slice(0, 16);
 const ensureDir = (d) => fs.mkdirSync(d, { recursive: true });
 const redact = (url) => url.replace(/\/\/[^@/]*@/, '//***@');   // hide creds in logs
+
+// Best-effort identity for comment authorship: git user.name, else OS username.
+export function gitOrOsUser() {
+  try { const n = execSync('git config user.name', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); if (n) return n; } catch { /* no git / no user.name */ }
+  try { return os.userInfo().username || null; } catch { return null; }
+}
 
 // Normalize loose input into a full comment / event record (defaults + ids).
 const newComment = (c) => ({
