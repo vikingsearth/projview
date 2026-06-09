@@ -79,3 +79,15 @@ test('GET /api/usage returns the aggregate shape over HTTP', async () => {
   await close();
   rmSync(db, { force: true });
 });
+
+test('POST without an author defaults to the git/OS user (not anonymous)', async () => {
+  const db = path.join(os.tmpdir(), `projview-srv-a-${process.pid}.sqlite`);
+  const { port, close } = await startServer(DOCS, { port: 41760, host: '127.0.0.1', store: { kind: 'custom', url: `sqlite://${db}` } });
+  const c = await jget(`http://127.0.0.1:${port}/api/comments`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ file: 'README.md', body: 'no author given' })
+  });
+  assert.ok(typeof c.author === 'string' && c.author.length > 0);   // server filled it in
+  await close();
+  rmSync(db, { force: true });
+});

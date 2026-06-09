@@ -8,7 +8,7 @@ import chokidar from 'chokidar';
 import { buildTree, isIgnoredDir, isPreviewable } from './walk.js';
 import { renderFile } from './render.js';
 import { buildIndex, updateFile, removeFile, search } from './search.js';
-import { createStore } from './store.js';
+import { createStore, gitOrOsUser } from './store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -73,6 +73,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const sseClients = new Set();
   const allowWrites = isLoopbackHost(host);   // comments are read-only on an exposed host
   const denyWrite = (res) => sendJson(res, { error: 'read-only: projview is exposed on a non-loopback host' }, 403);
+  const localAuthor = gitOrOsUser();          // default author for UI-created comments
 
   function broadcast(event, payload) {
     const frame = `event: ${event}\ndata: ${JSON.stringify(payload || {})}\n\n`;
@@ -135,7 +136,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         if (!allowWrites) return denyWrite(res);
         const body = await readBody(req);
         if (!body || !body.file || !body.body) { sendJson(res, { error: 'file and body are required' }, 400); return; }
-        const c = await store.addComment({ file: body.file, body: body.body, anchor: body.anchor, author: body.author });
+        const c = await store.addComment({ file: body.file, body: body.body, anchor: body.anchor, author: body.author || localAuthor });
         broadcast('comments', { file: c.file });
         sendJson(res, c, 201);
         return;
