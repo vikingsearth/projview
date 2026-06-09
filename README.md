@@ -50,10 +50,31 @@ projview search "mermaid" --demo   # quick test on the bundled docs
 | step | detail |
 | --- | --- |
 | walk | recursively finds `.md` / `.mmd`, skips `node_modules`, `dist`, dot-dirs |
-| index | builds an in-memory tree (nothing written to disk) |
+| index | builds an in-memory tree (nothing written to disk by default) |
 | serve | spawns a localhost site + opens your browser |
 | live | edits to files reload in the browser automatically |
 
-> ctrl-c and it's gone - "indexing" is never persisted.
+> ephemeral by default - ctrl-c and it's gone. opt into persistence below.
+
+## persistence (opt-in)
+
+By default the index is in-memory and nothing is written to disk. Opt in for a
+faster warm start, or a queryable store an AI can read:
+
+```bash
+projview docs --persist                                # sqlite cache in ~/.projview/cache
+projview docs --store-url "sqlite:///tmp/docs.sqlite"  # a sqlite file you choose
+projview docs --store-url "$DATABASE_URL"              # your own postgres (needs `pg`)
+```
+
+| backend | how |
+| --- | --- |
+| `memory` (default) | _(nothing)_ - ephemeral |
+| `lite` (sqlite) | `--persist` |
+| `superlite` (JSON) | `--store superlite --persist` |
+| `custom` (sqlite/postgres URL) | `--store-url <url>` (or `DATABASE_URL`) |
+
+On re-run it reloads the cache and only re-reads files whose mtime changed.
+Connection strings come from env/`~/.projview` - never commit credentials.
 
 see [samples/architecture.md](samples/architecture.md) for a mermaid demo.

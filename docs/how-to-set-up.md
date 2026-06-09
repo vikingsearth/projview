@@ -94,6 +94,9 @@ stdout, no server, no browser - built for agents and scripts. See
 | `--demo` | use projview's own bundled sample docs (works with the subcommands too) |
 | `-p`, `--port <n>` | preferred port (default `4321`, climbs if taken) |
 | `--no-open` | don't auto-open the browser |
+| `--persist` | keep the index in `~/.projview/cache` and reuse it next run |
+| `--store <kind>` | store backend: `memory` \| `superlite` \| `lite` (default: `memory`; `lite` when `--persist`) |
+| `--store-url <url>` | use a custom store: `sqlite://<file>` or `postgres://<...>` |
 | `-v`, `--version` | print the version and exit |
 | `-h`, `--help` | show help |
 
@@ -103,6 +106,37 @@ stdout, no server, no browser - built for agents and scripts. See
 | --- | --- | --- |
 | `PORT` | `4321` | port to serve on |
 | `HOST` | `127.0.0.1` | interface to bind (`0.0.0.0` to expose) |
+| `PROJVIEW_PERSIST` | `0` | `1` to persist the index (same as `--persist`) |
+| `PROJVIEW_STORE` | `memory` | store backend (same as `--store`) |
+| `PROJVIEW_STORE_URL` / `DATABASE_URL` | — | custom store connection URL (same as `--store-url`) |
+
+## persistence & stores
+
+By default projview is **ephemeral** - the index lives in memory and nothing is
+written to disk. Opt in to persistence when you want a faster warm start or a
+queryable store an AI can read:
+
+| backend | what | how |
+| --- | --- | --- |
+| `memory` | in-memory, nothing persisted (**default**) | _(no flag)_ |
+| `lite` | sqlite via Node's built-in `node:sqlite` | `--persist` (or `--store lite`) |
+| `superlite` | a plain JSON file | `--store superlite --persist` |
+| `custom` | your own DB via a connection URL | `--store-url sqlite://./my.sqlite` or `postgres://…` |
+
+```bash
+projview docs --persist                              # warm-start cache in ~/.projview/cache
+projview docs --store-url "sqlite:///tmp/docs.sqlite"  # a sqlite file you choose
+projview docs --store-url "$DATABASE_URL"            # your postgres (needs the `pg` package)
+```
+
+- **Locations:** persisted stores live in `~/.projview/cache/`; ephemeral ones in
+  `~/.projview/ephemeral/` and are removed on ctrl-c. Defaults can be set in
+  `~/.projview/config.json`.
+- **Warm start:** on re-run, projview loads the cached index and only re-reads
+  files whose modification time changed.
+- **Postgres** needs the optional `pg` package (`npm i pg`). The connection URL
+  comes from `--store-url` / `DATABASE_URL` / your config file - **never commit a
+  connection string with credentials**; keep it in the environment.
 
 ## use the source directly (advanced)
 

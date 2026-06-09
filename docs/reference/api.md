@@ -85,9 +85,27 @@ On-demand fetch + render, in-app link routing, anchor jumps.
 
 A chokidar watcher broadcasts change/tree events over SSE.
 
+## stores (persistence)
+
+The index is in-memory by default (ephemeral). Opt into a pluggable store with
+`--persist` / `--store` / `--store-url`:
+
+### backends
+
+`memory` (default) · `superlite` (JSON) · `lite` (sqlite via `node:sqlite`) ·
+`custom` (a `sqlite://` or `postgres://` connection URL; postgres needs the
+optional `pg` package).
+
+### warm start
+
+A persisted store lives in `~/.projview/cache`; on re-run projview reloads it and
+re-reads only files whose mtime changed. Connection strings come from the
+environment / config - never committed.
+
 ## performance notes
 
-Indexing is just a directory walk - no persistence, no cache files.
+Indexing is a directory walk; persistence is opt-in (see stores). Search runs
+in-memory regardless of backend.
 
 ## limitations
 
