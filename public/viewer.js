@@ -7,6 +7,7 @@ import { renderBreadcrumb } from './breadcrumb.js';
 import { runMermaid } from './mermaid.js';
 import { buildToc } from './toc.js';
 import { toast } from './toast.js';
+import { onFileRendered } from './comments.js';
 
 const contentEl = $('content');
 const viewerEl = $('viewer');
@@ -31,6 +32,7 @@ export async function openFile(p, fragment, highlight) {
   contentEl.innerHTML = html;
   await runMermaid();
   buildToc();
+  onFileRendered(p);   // load + anchor + paint comments for this file
   if (fragment) scrollToFragment(fragment);
   else if (highlight) highlightInContent(highlight);
   else viewerEl.scrollTop = 0;
@@ -81,5 +83,6 @@ function showNotFound(p) {
     `<p>can't find <code>${esc(p)}</code></p>` +
     `<p class="muted">the link may be broken, or the file was renamed / removed</p></div>`;
   buildToc();
+  onFileRendered(null);   // no file -> hide the comments affordances
   toast(`not found: ${p}`);
 }
