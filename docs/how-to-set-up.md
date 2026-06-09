@@ -11,7 +11,7 @@ previewer for markdown + mermaid files.
 
 | need | version |
 | --- | --- |
-| Node.js | **18+** |
+| Node.js | **22+** (the `lite` sqlite store uses the built-in `node:sqlite`) |
 | npm | ships with Node |
 
 No build step. By default indexing is in-memory and nothing is written to disk -
@@ -67,7 +67,7 @@ npm install
 npm run demo                 # preview the bundled docs/  (alias for --demo)
 npm start                    # index the current directory
 node bin/projview.js ./docs  # or call the CLI directly
-npm test                     # run the test suite (node:test, 29 tests)
+npm test                     # run the test suite (node:test, 45 tests)
 ```
 
 See the [project README](README.md) for the architecture and the
@@ -82,10 +82,15 @@ See the [project README](README.md) for the architecture and the
 | `projview [path]` | start the viewer (default) |
 | `projview search <query> [path]` | print ranked search results as JSON, then exit |
 | `projview tree [path]` | print the file tree as JSON, then exit |
+| `projview comment add <file> "<body>"` | leave a comment (`--heading <id>` for a section) |
+| `projview comments [file]` | list comments as JSON |
+| `projview comment resolve\|reopen\|rm <id>` | resolve, reopen, or delete a comment |
+| `projview usage [path]` | print usage stats (views / searches) as JSON |
 
-The `search` and `tree` subcommands are projview's **machine interface** - JSON on
-stdout, no server, no browser - built for agents and scripts. See
-[ai-tests/search.md](ai-tests/search.md) for a worked test.
+The subcommands are projview's **machine interface** - JSON on stdout, no server,
+no browser - built for agents and scripts. `search`/`tree` are read-only;
+`comment` writes ride a persistent store (you're warned if you comment without
+one). See [ai-tests/search.md](ai-tests/search.md) for a worked test.
 
 **Options**
 
@@ -98,6 +103,8 @@ stdout, no server, no browser - built for agents and scripts. See
 | `--persist` | keep the index in `~/.projview/cache` and reuse it next run |
 | `--store <kind>` | store backend: `memory` \| `superlite` \| `lite` (default: `memory`; `lite` when `--persist`) |
 | `--store-url <url>` | use a custom store: `sqlite://<file>` or `postgres://<...>` |
+| `--heading <id>` | (`comment add`) anchor the comment to a heading/section id |
+| `--author <name>` | (`comment add`) author to record (default: git/OS user) |
 | `-v`, `--version` | print the version and exit |
 | `-h`, `--help` | show help |
 
@@ -113,8 +120,9 @@ stdout, no server, no browser - built for agents and scripts. See
 
 ## persistence & stores
 
-By default projview is **ephemeral** - the index lives in memory and nothing is
-written to disk. Opt in to persistence when you want a faster warm start or a
+By default projview is **ephemeral** - the index (plus any comments and usage
+events) lives in memory and nothing is written to disk. Opt in to persistence
+when you want a faster warm start, comments that survive a restart, or a
 queryable store an AI can read:
 
 | backend | what | how |

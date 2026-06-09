@@ -5,7 +5,8 @@ and scroll-spy (the active section should track as you scroll).
 
 ## overview
 
-projview exposes a tiny HTTP surface. Everything is read-only and in-memory.
+projview exposes a tiny HTTP surface. It never writes your files - the only
+state it records is its own usage events (views / searches) into the store.
 
 ## endpoints
 
@@ -36,6 +37,35 @@ line-numbered snippets. See [the AI search test](../ai-tests/search.md).
 
 `projview tree [path]` returns `{ root, files, tree[] }` - the same structure
 `/api/tree` serves.
+
+### projview comment
+
+Leave / manage comments (they ride a persistent store - use `--persist` or
+`--store-url`, else you'll be warned the comment won't survive exit):
+
+| command | meaning |
+| --- | --- |
+| `projview comment add <file> "<body>"` | add a comment (whole file) |
+| `projview comment add <file> "<body>" --heading <id>` | anchor it to a section |
+| `projview comment resolve\|reopen <id>` | toggle resolved |
+| `projview comment rm <id>` | delete it |
+
+`--author <name>` overrides the recorded author (default: git/OS user). Agents
+pass e.g. `--author claude` so AI-authored comments are distinguishable. A
+comment is `{ id, file, anchor, body, author, createdAt, resolved }`; the
+`anchor` is `{type:'file'}`, `{type:'heading', id}`, or a `{type:'text', exact,
+prefix, suffix, section}` quote selector (text anchors come from the viewer).
+
+### projview comments
+
+`projview comments [file]` lists comments as JSON - all of them, or just one
+file's.
+
+### projview usage
+
+`projview usage [path]` returns `{ total, byType, topFiles[], recentSearches[] }`.
+The viewer records a `view` per file opened and a `search` per query, so usage
+accumulates over a session (persisted only with a persistent store).
 
 ## the walker
 
@@ -87,8 +117,9 @@ A chokidar watcher broadcasts change/tree events over SSE.
 
 ## stores (persistence)
 
-The index is in-memory by default (ephemeral). Opt into a pluggable store with
-`--persist` / `--store` / `--store-url`:
+The index - plus **comments** and **usage events** - is in-memory by default
+(ephemeral). Opt into a pluggable store with `--persist` / `--store` /
+`--store-url` so comments and usage survive a restart:
 
 ### backends
 
