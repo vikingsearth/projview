@@ -23,8 +23,8 @@ test('isPreviewable accepts only md/mmd (case-insensitive)', () => {
   assert.equal(isPreviewable('noext'), false);
 });
 
-test('buildTree indexes the docs fixtures (15 files)', () => {
-  assert.equal(countFiles(buildTree(DOCS)), 15);
+test('buildTree indexes the docs fixtures (16 files)', () => {
+  assert.equal(countFiles(buildTree(DOCS)), 16);
 });
 
 test('buildTree sorts dirs before files at each level', () => {
