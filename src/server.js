@@ -80,7 +80,10 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
 
     // --- search (fuzzy filenames + full-text contents) ---
     if (pathname === '/api/search') {
-      sendJson(res, search(url.searchParams.get('q') || ''));
+      const q = url.searchParams.get('q') || '';
+      const results = search(q);
+      if (q.trim()) { try { await store.recordEvent({ type: 'search', query: q.trim(), count: results.files.length + results.content.length }); } catch { /* usage is best-effort */ } }
+      sendJson(res, results);
       return;
     }
 
@@ -94,6 +97,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       }
       try {
         const content = await fsp.readFile(abs, 'utf8');
+        try { await store.recordEvent({ type: 'view', file: rel }); } catch { /* usage is best-effort */ }
         sendJson(res, { path: rel, ext: path.extname(abs).toLowerCase(), html: renderFile(path.extname(abs).toLowerCase(), content) });
       } catch {
         sendJson(res, { error: 'not found' }, 404);
