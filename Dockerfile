@@ -2,7 +2,7 @@
 # Serves the bundled sample docs as a read-only web app.
 # node:20-slim (Debian) - alpine's bundled npm hits "Exit handler never called"
 # on mermaid's large dependency tree, leaving a half-installed node_modules.
-FROM node:20-slim
+FROM node:22-slim
 
 WORKDIR /app
 

@@ -1,6 +1,6 @@
 {
   "name": "projview",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Ephemeral local previewer for markdown + mermaid files in any directory",
   "type": "module",
   "bin": {
@@ -18,7 +18,7 @@
     "docs"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "keywords": [
     "markdown",
@@ -41,6 +41,9 @@
     "chokidar": "^4.0.3",
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.1.0"
+  },
+  "optionalDependencies": {
+    "pg": "^8.21.0"
   },
   "devDependencies": {
     "svg-pan-zoom": "^3.6.2"
