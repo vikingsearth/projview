@@ -10,6 +10,7 @@
 import { $, esc } from './dom.js';
 import { state } from './store.js';
 import { toast } from './toast.js';
+import { findQuote } from './anchor.js';
 
 const contentEl = $('content');
 const viewerEl = $('viewer');
@@ -155,24 +156,11 @@ function pointAt(segs, offset) {
   return last ? { node: last.node, offset: last.node.nodeValue.length } : null;
 }
 
-const commonPrefix = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; };
-const commonSuffix = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return i; };
-
-// Resolve a {exact, prefix, suffix} quote selector to a Range, disambiguating
-// repeats by surrounding context. Returns null if `exact` isn't present.
+// Resolve a {exact, prefix, suffix} quote selector to a DOM Range (using the
+// pure finder in anchor.js). Returns null if `exact` isn't present (orphan).
 function resolveText(anchor, ctx) {
-  const { text } = ctx;
   const exact = anchor.exact || '';
-  if (!exact) return null;
-  let best = -1, bestScore = -1;
-  let idx = text.indexOf(exact);
-  while (idx !== -1) {
-    const before = text.slice(Math.max(0, idx - (anchor.prefix?.length || 0)), idx);
-    const after = text.slice(idx + exact.length, idx + exact.length + (anchor.suffix?.length || 0));
-    const score = commonSuffix(before, anchor.prefix || '') + commonPrefix(after, anchor.suffix || '');
-    if (score > bestScore) { bestScore = score; best = idx; }
-    idx = text.indexOf(exact, idx + 1);
-  }
+  const best = exact ? findQuote(ctx.text, anchor) : -1;
   if (best === -1) return null;
   const a = pointAt(ctx.segs, best);
   const b = pointAt(ctx.segs, best + exact.length);
