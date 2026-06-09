@@ -29,7 +29,14 @@ const cre = (tag, cls, html) => {
   return e;
 };
 
-const fab = cre('button', 'cmt-fab', '💬<span class="cmt-badge" hidden>0</span>');
+const FAB_ICON =
+  `<svg class="cmt-fab-ico" viewBox="0 0 24 24" width="23" height="23" fill="none" aria-hidden="true">
+     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+     <circle cx="8" cy="10" r="1.05" fill="currentColor"/>
+     <circle cx="12" cy="10" r="1.05" fill="currentColor"/>
+     <circle cx="16" cy="10" r="1.05" fill="currentColor"/>
+   </svg>`;
+const fab = cre('button', 'cmt-fab', `${FAB_ICON}<span class="cmt-badge" hidden>0</span>`);
 fab.title = 'comments';
 fab.hidden = true;
 
