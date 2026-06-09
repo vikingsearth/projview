@@ -8,6 +8,7 @@ import chokidar from 'chokidar';
 import { buildTree, isIgnoredDir, isPreviewable } from './walk.js';
 import { renderFile } from './render.js';
 import { buildIndex, updateFile, removeFile, search } from './search.js';
+import { createStore } from './store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -46,7 +47,7 @@ function resolveInRoot(root, relPath) {
   return abs;
 }
 
-export async function startServer(root, { port = 4321, host = '127.0.0.1' } = {}) {
+export async function startServer(root, { port = 4321, host = '127.0.0.1', store: storeConfig } = {}) {
   const sseClients = new Set();
 
   function broadcast(event, payload) {
@@ -128,16 +129,22 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1' } = {}
     .on('addDir', () => broadcast('tree'))
     .on('unlinkDir', () => broadcast('tree'));
 
-  await buildIndex(root);   // in-memory content index for search
+  const store = createStore(storeConfig, root);
+  const indexInfo = await buildIndex(root, store);   // load-or-build the search index
   const listenPort = await listenWithRetry(server, port, host);
 
   const close = () => new Promise((resolve) => {
     watcher.close();
     for (const res of sseClients) res.end();
-    server.close(() => resolve());
+    Promise.resolve(store.close()).finally(() => server.close(() => resolve()));
   });
 
-  return { server, port: listenPort, close };
+  return {
+    server,
+    port: listenPort,
+    close,
+    storeInfo: { describe: store.describe(), warm: indexInfo.warm, reindexed: indexInfo.reindexed, total: indexInfo.total }
+  };
 }
 
 // Try `port`, then climb until one is free (give up after a sane range).

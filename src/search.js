@@ -1,9 +1,10 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { buildTree } from './walk.js';
+import { createStore } from './store.js';
 
-// In-memory index: relPath -> { path, name, content, lower }. Rebuilt per run,
-// kept fresh by the watcher. Nothing is persisted to disk.
+// In-memory index: relPath -> { path, name, content, lower }. Search always runs
+// over this; a Store (optional, opt-in) just persists/warm-starts the entries.
 const index = new Map();
 let theRoot = null;
 
@@ -19,15 +20,37 @@ function addToIndex(rel, content) {
   index.set(rel, { path: rel, name: rel.split('/').pop(), content, lower: content.toLowerCase() });
 }
 
-// Read + index every previewable file under root.
-export async function buildIndex(root) {
+// Build the index for `root`. With a persisted store, loads the cached entries
+// and only re-reads files whose mtime changed (warm start); else reads them all.
+// Returns the store + a small summary, so the caller can close it on shutdown.
+export async function buildIndex(root, store) {
   theRoot = root;
   index.clear();
+  store = store || createStore({ kind: 'memory' }, root);
+
+  const cached = await store.load();
+  const cachedByPath = new Map((cached?.entries || []).map((e) => [e.path, e]));
   const files = flattenFiles(buildTree(root));
-  await Promise.all(files.map(async (f) => {
-    try { addToIndex(f.path, await fsp.readFile(path.join(root, f.path), 'utf8')); }
-    catch { /* unreadable - skip */ }
+  let reindexed = 0;
+
+  const entries = await Promise.all(files.map(async (f) => {
+    const abs = path.join(root, f.path);
+    let mtime = 0;
+    try { mtime = (await fsp.stat(abs)).mtimeMs; } catch { /* gone */ }
+    const prev = cachedByPath.get(f.path);
+    let content;
+    if (prev && prev.mtime === mtime) {
+      content = prev.content;                       // unchanged -> reuse cached
+    } else {
+      reindexed++;
+      try { content = await fsp.readFile(abs, 'utf8'); } catch { content = ''; }
+    }
+    return { path: f.path, name: f.name, ext: f.ext, mtime, content };
   }));
+
+  for (const e of entries) addToIndex(e.path, e.content);
+  await store.save(entries);
+  return { store, total: entries.length, reindexed, warm: !!cached };
 }
 
 export async function updateFile(rel) {

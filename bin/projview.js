@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { startServer } from '../src/server.js';
 import { buildTree, countFiles } from '../src/walk.js';
 import { buildIndex, search } from '../src/search.js';
+import { resolveStoreConfig, createStore } from '../src/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEMO_DIR = path.join(__dirname, '..', 'docs');   // bundled sample docs
@@ -24,6 +25,9 @@ function parseArgs(argv) {
     if (arg === '--port' || arg === '-p') opts.port = Number(argv[++i]) || opts.port;
     else if (arg === '--no-open') opts.open = false;
     else if (arg === '--demo') opts.demo = true;
+    else if (arg === '--store') opts.store = argv[++i];
+    else if (arg === '--store-url') opts.storeUrl = argv[++i];
+    else if (arg === '--persist') opts.persist = true;
     else if (arg === '--version' || arg === '-v') opts.version = true;
     else if (arg === '--help' || arg === '-h') opts.help = true;
     else if (arg.startsWith('-')) opts.unknown = arg;   // unrecognised flag -> error, don't treat as a path
@@ -36,27 +40,42 @@ function parseArgs(argv) {
 
 // --- machine interface: subcommands that print JSON to stdout and exit ---
 
-// pick the dir a subcommand runs against: --demo wins, else a positional, else cwd
-function rootFrom(positional, args) {
-  if (args.includes('--demo')) return DEMO_DIR;
-  return positional[0] ? path.resolve(process.cwd(), positional[0]) : process.cwd();
+// parse subcommand args: separate positionals from flags (consumes flag values,
+// so e.g. a postgres:// store URL is never mistaken for a path)
+function parseSubArgs(args) {
+  const o = { positional: [] };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--store') o.store = args[++i];
+    else if (a === '--store-url') o.storeUrl = args[++i];
+    else if (a === '--persist') o.persist = true;
+    else if (a === '--demo') o.demo = true;
+    else if (a.startsWith('-')) { /* ignore unknown flag in a subcommand */ }
+    else o.positional.push(a);
+  }
+  return o;
 }
 
+const subRoot = (o, idx) =>
+  o.demo ? DEMO_DIR : (o.positional[idx] ? path.resolve(process.cwd(), o.positional[idx]) : process.cwd());
+
 async function cmdSearch(args) {
-  const positional = args.filter((a) => !a.startsWith('-'));
-  const query = positional[0];
+  const o = parseSubArgs(args);
+  const query = o.positional[0];
   if (!query) {
-    console.error('usage: projview search <query> [path] [--demo]');
+    console.error('usage: projview search <query> [path] [--demo] [--store <kind>|--store-url <url>] [--persist]');
     process.exit(1);
   }
-  const root = rootFrom(positional.slice(1), args);
-  await buildIndex(root);
+  const root = subRoot(o, 1);
+  const store = createStore(resolveStoreConfig(o), root);
+  await buildIndex(root, store);
   process.stdout.write(JSON.stringify(search(query), null, 2) + '\n');
+  await store.close();
 }
 
 function cmdTree(args) {
-  const positional = args.filter((a) => !a.startsWith('-'));
-  const root = rootFrom(positional, args);
+  const o = parseSubArgs(args);
+  const root = subRoot(o, 0);
   const tree = buildTree(root);
   process.stdout.write(JSON.stringify({ root: path.basename(root) || root, files: countFiles(tree), tree }, null, 2) + '\n');
 }
@@ -84,13 +103,17 @@ arguments:
   path              directory to index (default: current directory)
 
 options:
-  -p, --port <n>    preferred port (default: 4321, climbs if taken)
-      --demo        preview projview's bundled sample docs
-      --no-open     do not auto-open the browser
-  -v, --version     print the version and exit
-  -h, --help        show this help
+  -p, --port <n>      preferred port (default: 4321, climbs if taken)
+      --demo          preview projview's bundled sample docs
+      --no-open       do not auto-open the browser
+      --persist       keep the index in ~/.projview/cache and reuse it next run
+      --store <kind>  store backend: memory | superlite | lite  (default: memory)
+      --store-url <url>  custom store: sqlite://<file> or postgres://<...>  (or set DATABASE_URL)
+  -v, --version       print the version and exit
+  -h, --help          show this help
 
-nothing is written to disk - ctrl-c and it's gone.`;
+ephemeral by default - nothing is persisted unless you opt in with --persist /
+--store / --store-url. ctrl-c removes any ephemeral store.`;
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -107,12 +130,15 @@ async function main() {
     process.exit(1);
   }
 
-  const { port, close } = await startServer(opts.root, { port: opts.port, host: opts.host });
+  const storeConfig = resolveStoreConfig(opts);
+  const { port, close, storeInfo } = await startServer(opts.root, { port: opts.port, host: opts.host, store: storeConfig });
   const url = `http://${opts.host}:${port}`;
 
   console.log(`\n  projview  ->  ${url}`);
   console.log(`  indexing  ->  ${opts.root}`);
-  console.log(`  (ctrl-c to stop - nothing is persisted)\n`);
+  console.log(`  store     ->  ${storeInfo.describe}`);
+  if (storeInfo.warm) console.log(`  warm      ->  reused cache, reindexed ${storeInfo.reindexed}/${storeInfo.total} changed`);
+  console.log(`  (ctrl-c to stop)\n`);
 
   if (opts.open) openBrowser(url);
 
