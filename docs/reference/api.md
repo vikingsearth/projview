@@ -12,15 +12,36 @@ state it records is its own usage events (views / searches) into the store.
 
 ### GET /api/tree
 
-Returns the in-memory file tree as JSON.
+Returns the in-memory file tree as JSON, plus the `version` and a `writable`
+flag (false when projview is exposed on a non-loopback host).
 
 ### GET /api/file
 
 Renders a single file to HTML on demand. Query param `p` is the relative path.
+Records a `view` usage event.
 
 ### GET /api/events
 
-Server-sent events stream for live reload.
+Server-sent events stream: `change` / `tree` for live reload, `comments` when a
+comment is created/edited/deleted.
+
+### GET /api/comments
+
+Lists comments as JSON. Optional `?file=<path>` filters to a single file.
+
+### POST /api/comments
+
+Creates a comment from `{ file, body, anchor?, author? }`. **Loopback only** -
+returns `403` when bound to a non-loopback host. Author defaults to the server's
+git/OS user when omitted.
+
+### PATCH /api/comments/:id · DELETE /api/comments/:id
+
+Resolve/edit (`{ resolved?, body? }`) or delete a comment. Loopback only.
+
+### GET /api/usage
+
+Aggregated usage: `{ total, byType, topFiles[], recentSearches[] }`.
 
 ## machine interface (CLI)
 
@@ -114,6 +135,13 @@ On-demand fetch + render, in-app link routing, anchor jumps.
 ### live reload
 
 A chokidar watcher broadcasts change/tree events over SSE.
+
+### comments
+
+A drawer (the 💬 button, bottom-right) lists comments for the open file. Add one
+by selecting text, hovering a heading, or "+ note". Text anchors re-anchor on
+each render and paint via the CSS Custom Highlight API; create/resolve/delete
+controls hide when the server isn't writable.
 
 ## stores (persistence)
 
