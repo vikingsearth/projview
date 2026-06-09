@@ -14,7 +14,8 @@ previewer for markdown + mermaid files.
 | Node.js | **18+** |
 | npm | ships with Node |
 
-No build step, no database - indexing is in-memory and nothing is written to disk.
+No build step. By default indexing is in-memory and nothing is written to disk -
+you can opt into a persistent store (sqlite / JSON / your own DB) below.
 
 ## pick your path
 
