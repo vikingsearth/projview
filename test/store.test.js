@@ -34,6 +34,15 @@ test('sqlite store round-trips entries', async () => {
   fs.rmSync(file, { force: true });
 });
 
+test('superlite (json) store round-trips entries', async () => {
+  const s = createStore({ kind: 'superlite', persist: false }, '/tmp/projview-test-superlite-store');
+  await s.save([{ path: 'b.md', name: 'b.md', ext: '.md', mtime: 7, content: 'world' }]);
+  const loaded = await s.load();
+  assert.equal(loaded.entries.length, 1);
+  assert.equal(loaded.entries[0].content, 'world');
+  await s.close(); // ephemeral -> removes its temp json
+});
+
 test('buildIndex warm-starts from a persisted store (reindex only changed)', async () => {
   const file = tmpFile('warm');
   const cfg = { kind: 'custom', url: `sqlite://${file}` };
