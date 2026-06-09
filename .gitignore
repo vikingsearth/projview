@@ -3,3 +3,6 @@ node_modules/
 *.tgz
 *.pem
 .DS_Store
+
+# local preview config (carries machine-specific absolute paths)
+.claude/launch.json
