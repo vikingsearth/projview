@@ -4,7 +4,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveStoreConfig, createStore } from '../src/store.js';
+import { resolveStoreConfig, createStore, isPersistent } from '../src/store.js';
 import { buildIndex, search } from '../src/search.js';
 
 const DOCS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'docs');
@@ -73,4 +73,77 @@ test('buildIndex warm-starts from a persisted store (reindex only changed)', asy
 
   assert.ok(search('mermaid').content.length > 0); // search works over warm index
   fs.rmSync(file, { force: true });
+});
+
+/* ---------- comments + usage (Phase 3a) ---------- */
+
+test('isPersistent reflects whether comments survive a restart', () => {
+  assert.equal(isPersistent({ kind: 'memory' }), false);
+  assert.equal(isPersistent({ kind: 'lite', persist: false }), false);
+  assert.equal(isPersistent({ kind: 'lite', persist: true }), true);
+  assert.equal(isPersistent({ kind: 'superlite', persist: true }), true);
+  assert.equal(isPersistent({ kind: 'custom', url: 'sqlite:///x.sqlite' }), true);
+});
+
+test('sqlite comments: add/list/update/delete + text-range anchor round-trips', async () => {
+  const file = tmpFile('comments');
+  const s = createStore({ kind: 'custom', url: `sqlite://${file}` }, DOCS);
+  const anchor = { type: 'text', exact: 'live reload', prefix: 'the ', suffix: ' stream', section: 'pv-features' };
+  const c = await s.addComment({ file: 'README.md', body: 'check this', author: 'claude', anchor });
+  assert.ok(c.id && c.createdAt);
+
+  const list = await s.listComments('README.md');
+  assert.equal(list.length, 1);
+  assert.deepEqual(list[0].anchor, anchor);     // the full quote selector survives
+  assert.equal(list[0].author, 'claude');
+  assert.equal(list[0].resolved, false);
+
+  const upd = await s.updateComment(c.id, { resolved: true });
+  assert.equal(upd.resolved, true);
+  assert.equal((await s.listComments('README.md'))[0].resolved, true);
+  assert.equal(await s.updateComment('no-such-id', { resolved: true }), null);
+
+  assert.equal(await s.deleteComment(c.id), true);
+  assert.equal((await s.listComments('README.md')).length, 0);
+
+  await s.close();
+  fs.rmSync(file, { force: true });
+});
+
+test('sqlite usage: recordEvent + usageStats aggregates', async () => {
+  const file = tmpFile('usage');
+  const s = createStore({ kind: 'custom', url: `sqlite://${file}` }, DOCS);
+  await s.recordEvent({ type: 'view', file: 'a.md' });
+  await s.recordEvent({ type: 'view', file: 'a.md' });
+  await s.recordEvent({ type: 'view', file: 'b.md' });
+  await s.recordEvent({ type: 'search', query: 'mermaid' });
+  const u = await s.usageStats();
+  assert.equal(u.total, 4);
+  assert.equal(u.byType.view, 3);
+  assert.equal(u.byType.search, 1);
+  assert.equal(u.topFiles[0].file, 'a.md');
+  assert.equal(u.topFiles[0].count, 2);
+  assert.deepEqual(u.recentSearches, ['mermaid']);
+  await s.close();
+  fs.rmSync(file, { force: true });
+});
+
+test('superlite persists comments to its json file', async () => {
+  const s = createStore({ kind: 'superlite', persist: false }, '/tmp/projview-test-superlite-comments');
+  const c = await s.addComment({ file: 'a.md', body: 'hi', anchor: { type: 'heading', id: 'pv-intro' } });
+  assert.ok(c.id);
+  const list = await s.listComments('a.md');
+  assert.equal(list.length, 1);
+  assert.equal(list[0].anchor.id, 'pv-intro');
+  const disk = JSON.parse(fs.readFileSync(s.file, 'utf8'));   // it actually hit disk
+  assert.equal(disk.comments.length, 1);
+  await s.close();   // ephemeral -> removes its temp json
+});
+
+test('memory store keeps comments only for the session', async () => {
+  const s = createStore({ kind: 'memory' }, DOCS);
+  await s.addComment({ file: 'a.md', body: 'note' });
+  assert.equal((await s.listComments('a.md')).length, 1);
+  const fresh = createStore({ kind: 'memory' }, DOCS);   // shares nothing
+  assert.equal((await fresh.listComments('a.md')).length, 0);
 });
