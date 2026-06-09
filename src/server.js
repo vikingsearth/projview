@@ -47,8 +47,32 @@ function resolveInRoot(root, relPath) {
   return abs;
 }
 
+// Comment writes are allowed only when bound to loopback. A non-loopback bind
+// (e.g. 0.0.0.0 on the launchpad / in Docker) is treated as exposed -> read-only.
+export function isLoopbackHost(host) {
+  return ['127.0.0.1', '::1', 'localhost', ''].includes(host);
+}
+
+// Read + JSON-parse a request body, capped to guard against abuse.
+// Resolves null on parse error or oversize (handler treats that as a 400).
+function readBody(req, limit = 1_000_000) {
+  return new Promise((resolve) => {
+    let data = '';
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limit) { req.destroy(); resolve(null); return; }
+      data += chunk;
+    });
+    req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch { resolve(null); } });
+    req.on('error', () => resolve(null));
+  });
+}
+
 export async function startServer(root, { port = 4321, host = '127.0.0.1', store: storeConfig } = {}) {
   const sseClients = new Set();
+  const allowWrites = isLoopbackHost(host);   // comments are read-only on an exposed host
+  const denyWrite = (res) => sendJson(res, { error: 'read-only: projview is exposed on a non-loopback host' }, 403);
 
   function broadcast(event, payload) {
     const frame = `event: ${event}\ndata: ${JSON.stringify(payload || {})}\n\n`;
@@ -74,7 +98,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
 
     // --- file tree ---
     if (pathname === '/api/tree') {
-      sendJson(res, { root: path.basename(root) || root, tree: buildTree(root), version: VERSION });
+      sendJson(res, { root: path.basename(root) || root, tree: buildTree(root), version: VERSION, writable: allowWrites });
       return;
     }
 
@@ -102,6 +126,54 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       } catch {
         sendJson(res, { error: 'not found' }, 404);
       }
+      return;
+    }
+
+    // --- comments: list (GET) + create (POST) ---
+    if (pathname === '/api/comments') {
+      if (req.method === 'POST') {
+        if (!allowWrites) return denyWrite(res);
+        const body = await readBody(req);
+        if (!body || !body.file || !body.body) { sendJson(res, { error: 'file and body are required' }, 400); return; }
+        const c = await store.addComment({ file: body.file, body: body.body, anchor: body.anchor, author: body.author });
+        broadcast('comments', { file: c.file });
+        sendJson(res, c, 201);
+        return;
+      }
+      sendJson(res, await store.listComments(url.searchParams.get('file') || undefined));
+      return;
+    }
+
+    // --- a single comment by id: resolve/edit (PATCH) + delete (DELETE) ---
+    if (pathname.startsWith('/api/comments/')) {
+      const id = decodeURIComponent(pathname.slice('/api/comments/'.length));
+      if (req.method === 'PATCH') {
+        if (!allowWrites) return denyWrite(res);
+        const body = await readBody(req);
+        if (!body) { sendJson(res, { error: 'invalid body' }, 400); return; }
+        const patch = {};
+        if (typeof body.resolved === 'boolean') patch.resolved = body.resolved;
+        if (typeof body.body === 'string') patch.body = body.body;
+        const c = await store.updateComment(id, patch);
+        if (!c) { sendJson(res, { error: 'not found' }, 404); return; }
+        broadcast('comments', { file: c.file });
+        sendJson(res, c);
+        return;
+      }
+      if (req.method === 'DELETE') {
+        if (!allowWrites) return denyWrite(res);
+        if (!(await store.deleteComment(id))) { sendJson(res, { error: 'not found' }, 404); return; }
+        broadcast('comments', {});
+        sendJson(res, { deleted: id });
+        return;
+      }
+      sendJson(res, { error: 'use PATCH or DELETE' }, 405);
+      return;
+    }
+
+    // --- usage stats ---
+    if (pathname === '/api/usage') {
+      sendJson(res, await store.usageStats());
       return;
     }
 
@@ -156,6 +228,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     server,
     port: listenPort,
     close,
+    writable: allowWrites,
     storeInfo: { describe: store.describe(), warm: indexInfo.warm, reindexed: indexInfo.reindexed, total: indexInfo.total }
   };
 }

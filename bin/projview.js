@@ -222,13 +222,14 @@ async function main() {
   }
 
   const storeConfig = resolveStoreConfig(opts);
-  const { port, close, storeInfo } = await startServer(opts.root, { port: opts.port, host: opts.host, store: storeConfig });
+  const { port, close, storeInfo, writable } = await startServer(opts.root, { port: opts.port, host: opts.host, store: storeConfig });
   const url = `http://${opts.host}:${port}`;
 
   console.log(`\n  projview  ->  ${url}`);
   console.log(`  indexing  ->  ${opts.root}`);
   console.log(`  store     ->  ${storeInfo.describe}`);
   if (storeInfo.warm) console.log(`  warm      ->  reused cache, reindexed ${storeInfo.reindexed}/${storeInfo.total} changed`);
+  if (!writable) console.log(`  comments  ->  read-only (exposed on ${opts.host})`);
   console.log(`  (ctrl-c to stop)\n`);
 
   if (opts.open) openBrowser(url);
