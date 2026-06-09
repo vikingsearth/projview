@@ -43,6 +43,21 @@ test('superlite (json) store round-trips entries', async () => {
   await s.close(); // ephemeral -> removes its temp json
 });
 
+test('store update/remove mutate a single entry (live-sync primitives)', async () => {
+  const file = tmpFile('mutate');
+  const s = createStore({ kind: 'custom', url: `sqlite://${file}` }, DOCS);
+  await s.save([{ path: 'a.md', name: 'a.md', ext: '.md', mtime: 1, content: 'first' }]);
+  await s.update({ path: 'a.md', name: 'a.md', ext: '.md', mtime: 2, content: 'updated' }); // upsert
+  await s.update({ path: 'b.md', name: 'b.md', ext: '.md', mtime: 3, content: 'new' });      // insert
+  let byPath = Object.fromEntries((await s.load()).entries.map((e) => [e.path, e.content]));
+  assert.equal(byPath['a.md'], 'updated');
+  assert.equal(byPath['b.md'], 'new');
+  await s.remove('a.md');
+  assert.ok(!(await s.load()).entries.some((e) => e.path === 'a.md'));
+  await s.close();
+  fs.rmSync(file, { force: true });
+});
+
 test('buildIndex warm-starts from a persisted store (reindex only changed)', async () => {
   const file = tmpFile('warm');
   const cfg = { kind: 'custom', url: `sqlite://${file}` };

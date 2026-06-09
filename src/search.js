@@ -53,10 +53,15 @@ export async function buildIndex(root, store) {
   return { store, total: entries.length, reindexed, warm: !!cached };
 }
 
+// Re-read one file into the in-memory index; return its store entry (or null).
 export async function updateFile(rel) {
-  if (!theRoot) return;
-  try { addToIndex(rel, await fsp.readFile(path.join(theRoot, rel), 'utf8')); }
-  catch { /* gone between event and read - ignore */ }
+  if (!theRoot) return null;
+  const abs = path.join(theRoot, rel);
+  try {
+    const [content, stat] = await Promise.all([fsp.readFile(abs, 'utf8'), fsp.stat(abs)]);
+    addToIndex(rel, content);
+    return { path: rel, name: rel.split('/').pop(), ext: path.extname(rel).toLowerCase(), mtime: stat.mtimeMs, content };
+  } catch { return null; }
 }
 
 export function removeFile(rel) { index.delete(rel); }

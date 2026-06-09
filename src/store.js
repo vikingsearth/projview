@@ -78,6 +78,8 @@ function memoryStore() {
     kind: 'memory',
     async load() { return null; },
     async save() {},
+    async update() {},
+    async remove() {},
     async close() {},
     describe() { return 'in-memory (ephemeral - nothing persisted)'; }
   };
@@ -85,15 +87,29 @@ function memoryStore() {
 
 function superliteStore(root, persist) {
   const file = fileFor(root, persist, 'json');
+  let map = null;   // path -> entry, lazily loaded
+  const ensure = async () => {
+    if (map) return map;
+    try {
+      const d = JSON.parse(await fsp.readFile(file, 'utf8'));
+      map = new Map((d.entries || []).map((e) => [e.path, e]));
+    } catch { map = new Map(); }
+    return map;
+  };
+  const flush = () => fsp.writeFile(file, JSON.stringify({ builtAt: Date.now(), entries: [...map.values()] }));
   return {
     kind: 'superlite',
     file,
     async load() {
-      try { return JSON.parse(await fsp.readFile(file, 'utf8')); } catch { return null; }
+      const m = await ensure();
+      return m.size ? { entries: [...m.values()] } : null;
     },
     async save(entries) {
-      await fsp.writeFile(file, JSON.stringify({ builtAt: Date.now(), entries }));
+      map = new Map(entries.map((e) => [e.path, e]));
+      await flush();
     },
+    async update(entry) { (await ensure()).set(entry.path, entry); await flush(); },
+    async remove(p) { (await ensure()).delete(p); await flush(); },
     async close({ keep } = {}) {
       if (!persist && !keep) { try { await fsp.unlink(file); } catch { /* gone */ } }
     },
@@ -126,6 +142,15 @@ function sqliteAt(file, { cleanup }) {
       const ins = d.prepare('INSERT OR REPLACE INTO files (path, name, ext, mtime, content) VALUES (?, ?, ?, ?, ?)');
       for (const e of entries) ins.run(e.path, e.name, e.ext, e.mtime, e.content);
       d.exec('COMMIT');
+    },
+    async update(entry) {
+      const d = await open();
+      d.prepare('INSERT OR REPLACE INTO files (path, name, ext, mtime, content) VALUES (?, ?, ?, ?, ?)')
+        .run(entry.path, entry.name, entry.ext, entry.mtime, entry.content);
+    },
+    async remove(p) {
+      const d = await open();
+      d.prepare('DELETE FROM files WHERE path = ?').run(p);
     },
     async close({ keep } = {}) {
       if (db) { db.close(); db = null; }
@@ -182,6 +207,18 @@ function postgresStore(url) {
         );
       }
       await c.query('COMMIT');
+    },
+    async update(entry) {
+      const c = await open();
+      await c.query(
+        'INSERT INTO projview_files (path, name, ext, mtime, content) VALUES ($1, $2, $3, $4, $5)' +
+          ' ON CONFLICT (path) DO UPDATE SET name = $2, ext = $3, mtime = $4, content = $5',
+        [entry.path, entry.name, entry.ext, entry.mtime, entry.content]
+      );
+    },
+    async remove(p) {
+      const c = await open();
+      await c.query('DELETE FROM projview_files WHERE path = $1', [p]);
     },
     async close() { if (client) { await client.end(); client = null; } },   // never drop the user's table
     describe() { return `custom/postgres ${redact(url)}`; }

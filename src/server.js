@@ -113,24 +113,33 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   });
 
   // --- file watcher -> live reload ---
+  const store = createStore(storeConfig, root);
+  const indexInfo = await buildIndex(root, store);   // load-or-build the search index
+
+  // file watcher -> keep the in-memory index, the persisted store, AND the
+  // browser in sync as files change during a session
   const watcher = chokidar.watch(root, {
     ignoreInitial: true,
     ignored: (p) => p.split(path.sep).some(isIgnoredDir)
   });
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
+  const touch = async (p, event) => {
+    if (!isPreviewable(p)) return;
+    const entry = await updateFile(rel(p));   // refresh in-memory index, get the entry
+    if (entry) await store.update(entry);     // mirror the change into the store
+    broadcast(event, { path: rel(p) });
+  };
   watcher
-    .on('change', (p) => {
+    .on('change', (p) => touch(p, 'change'))
+    .on('add', (p) => touch(p, 'tree'))
+    .on('unlink', async (p) => {
       if (!isPreviewable(p)) return;
-      updateFile(rel(p));
-      broadcast('change', { path: rel(p) });
+      removeFile(rel(p));
+      await store.remove(rel(p));
+      broadcast('tree');
     })
-    .on('add', (p) => { if (isPreviewable(p)) { updateFile(rel(p)); broadcast('tree'); } })
-    .on('unlink', (p) => { if (isPreviewable(p)) { removeFile(rel(p)); broadcast('tree'); } })
     .on('addDir', () => broadcast('tree'))
     .on('unlinkDir', () => broadcast('tree'));
-
-  const store = createStore(storeConfig, root);
-  const indexInfo = await buildIndex(root, store);   // load-or-build the search index
   const listenPort = await listenWithRetry(server, port, host);
 
   const close = () => new Promise((resolve) => {
