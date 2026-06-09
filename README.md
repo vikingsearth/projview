@@ -34,6 +34,9 @@ and exit (no server, no browser), so an agent or script can query your docs:
 ```bash
 projview search "<query>" [path]   # ranked: filename matches + in-content hits w/ line snippets
 projview tree [path]               # the file tree as JSON
+projview comment add <file> "…"    # leave a comment (--heading <id> to anchor a section)
+projview comments [file]           # list comments as JSON
+projview usage [path]              # views + searches recorded by the viewer
 projview search "mermaid" --demo   # quick test on the bundled docs
 ```
 
@@ -53,8 +56,18 @@ projview search "mermaid" --demo   # quick test on the bundled docs
 | index | builds an in-memory tree (nothing written to disk by default) |
 | serve | spawns a localhost site + opens your browser |
 | live | edits to files reload in the browser automatically |
+| comment | leave notes on a file, a section, or a text selection (browser or CLI) |
 
 > ephemeral by default - ctrl-c and it's gone. opt into persistence below.
+
+## comments
+
+Leave notes on a whole file, a heading/section, or a selected passage - from the
+viewer (the 💬 button, bottom-right) or via the CLI / HTTP API. Text comments
+**re-anchor** as the doc changes and only flag themselves *orphaned* if the quoted
+text truly disappears. Comments persist when you opt into a store
+(`--persist` / `--store-url`); writes are **localhost-only** (an exposed instance
+is read-only).
 
 ## persistence (opt-in)
 
