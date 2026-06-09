@@ -1,6 +1,6 @@
 {
   "name": "projview",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Ephemeral local previewer for markdown + mermaid files in any directory",
   "type": "module",
   "bin": {
