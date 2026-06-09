@@ -10,6 +10,7 @@ import './links.js';
 import './toc.js';
 import './mermaid.js';
 import './search.js';
+import './comments.js';
 
 // browser back / forward
 window.addEventListener('hashchange', () => {
