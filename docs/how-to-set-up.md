@@ -67,7 +67,7 @@ npm install
 npm run demo                 # preview the bundled docs/  (alias for --demo)
 npm start                    # index the current directory
 node bin/projview.js ./docs  # or call the CLI directly
-npm test                     # run the test suite (node:test, 49 tests)
+npm test                     # run the test suite (node:test, 54 tests)
 ```
 
 See the [project README](README.md) for the architecture and the
