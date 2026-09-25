@@ -5,6 +5,7 @@ import { state } from './store.js';
 import { resolveRelative } from './paths.js';
 import { openFile, scrollToFragment } from './viewer.js';
 import { toast } from './toast.js';
+import { fileKind } from './icons.js';
 
 const contentEl = $('content');
 
@@ -26,6 +27,6 @@ contentEl.addEventListener('click', (e) => {
 
   const [pathPart, frag] = href.split('#');
   const target = resolveRelative(state.currentPath, pathPart);
-  if (/\.(md|mmd|json|ya?ml)$/i.test(target)) openFile(target, frag);
+  if (fileKind(target)) openFile(target, frag);
   else toast(`can't preview "${pathPart}" - only .md / .mmd / .json / .yaml for now`);
 });
