@@ -4,4 +4,12 @@ export const SVG_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentC
 export const SVG_FILE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>`;
 export const SVG_DIAGRAM = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><line x1="8.4" y1="10.7" x2="15.6" y2="6.3"/><line x1="8.4" y1="13.3" x2="15.6" y2="17.7"/></svg>`;
 
-export const fileIcon = (ext) => (ext === '.mmd' ? SVG_DIAGRAM : SVG_FILE);
+export const SVG_DATA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>`;
+
+// .md -> 'md', .mmd -> 'mmd', .json / .yml / .yaml -> 'data'
+export const fileKind = (name) => {
+  const ext = (name.match(/\.[^./]+$/)?.[0] || '').toLowerCase();
+  return ext === '.mmd' ? 'mmd' : ['.json', '.yml', '.yaml'].includes(ext) ? 'data' : 'md';
+};
+
+export const fileIcon = (name) => ({ mmd: SVG_DIAGRAM, data: SVG_DATA }[fileKind(name)] || SVG_FILE);
