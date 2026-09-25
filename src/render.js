@@ -92,6 +92,116 @@ export function renderMermaid(content) {
   return `<div class="mermaid">${escapeHtml(content)}</div>\n`;
 }
 
+// Re-indent JSON by walking its tokens rather than parse -> stringify, so the
+// original literals survive untouched (big ints, 1.0, duplicate keys, key order).
+// Assumes the input is already valid JSON (callers check with JSON.parse first).
+export function formatJson(src, indent = 2) {
+  const pad = (n) => '\n' + ' '.repeat(n * indent);
+  let out = '';
+  let depth = 0;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== '"') j += src[j] === '\\' ? 2 : 1;
+      out += src.slice(i, j + 1);
+      i = j;
+    } else if (c === '{' || c === '[') {
+      // keep empty containers compact: {} / []
+      let j = i + 1;
+      while (/\s/.test(src[j] || '')) j++;
+      if (src[j] === (c === '{' ? '}' : ']')) { out += c + src[j]; i = j; continue; }
+      out += c + pad(++depth);
+    } else if (c === '}' || c === ']') {
+      out += pad(--depth) + c;
+    } else if (c === ',') {
+      out += ',' + pad(depth);
+    } else if (c === ':') {
+      out += ': ';
+    } else if (!/\s/.test(c)) {
+      out += c;
+    }
+  }
+  return out;
+}
+
+// Split highlight.js output into lines, closing + reopening any <span> that
+// crosses a newline so each line is self-contained HTML.
+function splitHighlightedLines(html) {
+  const lines = [];
+  const open = [];
+  let cur = '';
+  for (const m of html.matchAll(/<span[^>]*>|<\/span>|\n|[^<\n]+/g)) {
+    const tok = m[0];
+    if (tok === '\n') {
+      lines.push(cur + '</span>'.repeat(open.length));
+      cur = open.join('');
+    } else {
+      if (tok.startsWith('<span')) open.push(tok);
+      else if (tok === '</span>') open.pop();
+      cur += tok;
+    }
+  }
+  lines.push(cur + '</span>'.repeat(open.length));
+  return lines;
+}
+
+const leadingIndent = (line) => line.match(/^[ \t]*/)[0].replace(/\t/g, '  ').length;
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+
+// Big files skip syntax highlighting - hljs gets slow and nobody reads 2MB of JSON by colour.
+const HIGHLIGHT_LIMIT = 2_000_000;
+
+// A code view with line numbers and indent guides. Each line carries its
+// indent depth (--i) so CSS can draw one guide per level (--step columns apart).
+function renderCodeView(code, lang, note = '') {
+  const raw = code.replace(/\r\n?/g, '\n').replace(/\n$/, '');
+  const rawLines = raw.split('\n');
+  const html = raw.length <= HIGHLIGHT_LIMIT && hljs.getLanguage(lang)
+    ? hljs.highlight(raw, { language: lang, ignoreIllegals: true }).value
+    : escapeHtml(raw);
+  const lines = splitHighlightedLines(html);
+
+  // blank lines borrow the shallower neighbour's indent so guides don't break
+  const indents = rawLines.map((l) => (l.trim() ? leadingIndent(l) : -1));
+  const step = indents.filter((n) => n > 0).reduce(gcd, 0);
+  const next = new Array(indents.length);
+  for (let i = indents.length - 1, n = 0; i >= 0; i--) next[i] = n = indents[i] === -1 ? n : indents[i];
+  for (let i = 0, prev = 0; i < indents.length; i++) {
+    if (indents[i] === -1) indents[i] = Math.min(prev, next[i]);
+    else prev = indents[i];
+  }
+  const guideStep = step >= 2 && step <= 8 ? step : 2;
+
+  const body = lines
+    .map((l, i) => `<span class="cl" style="--i:${indents[i]}"><span class="lc">${l}</span></span>`)
+    .join('');
+  return `${note}<pre class="hljs code-view" data-lang="${lang}" style="--step:${guideStep}"><code>${body}</code></pre>\n`;
+}
+
+const notice = (msg) => `<div class="data-notice">${escapeHtml(msg)}</div>\n`;
+
+// JSON: pretty-printed when valid; shown as-is (with a note) when it isn't -
+// e.g. JSONC with comments, or a genuinely broken file.
+export function renderJson(content) {
+  try {
+    JSON.parse(content);
+  } catch (err) {
+    if (!content.trim()) return renderCodeView('', 'json');
+    return renderCodeView(content, 'json', notice(`not strict JSON, shown as-is - ${err.message}`));
+  }
+  return renderCodeView(formatJson(content), 'json');
+}
+
+// YAML: indentation is meaning, so it's shown exactly as written (highlighted,
+// with guides) rather than re-serialised - which would also choke on Helm templates.
+export function renderYaml(content) {
+  return renderCodeView(content, 'yaml');
+}
+
 export function renderFile(ext, content) {
-  return ext === '.mmd' ? renderMermaid(content) : renderMarkdown(content);
+  if (ext === '.mmd') return renderMermaid(content);
+  if (ext === '.json') return renderJson(content);
+  if (ext === '.yml' || ext === '.yaml') return renderYaml(content);
+  return renderMarkdown(content);
 }
