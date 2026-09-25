@@ -7,7 +7,10 @@ const IGNORED_DIRS = new Set([
   '.cache', '.turbo', 'vendor', '.venv', '__pycache__'
 ]);
 
-export const PREVIEWABLE_EXTS = new Set(['.md', '.mmd']);
+export const PREVIEWABLE_EXTS = new Set(['.md', '.mmd', '.json', '.yml', '.yaml']);
+
+// Previewable by extension but machine-generated noise - huge, never read.
+const IGNORED_FILES = new Set(['package-lock.json', 'pnpm-lock.yaml']);
 
 // True if a path segment should stop the walk (ignored name or any dot-dir).
 export function isIgnoredDir(name) {
@@ -15,6 +18,7 @@ export function isIgnoredDir(name) {
 }
 
 export function isPreviewable(filePath) {
+  if (IGNORED_FILES.has(path.basename(filePath).toLowerCase())) return false;
   return PREVIEWABLE_EXTS.has(path.extname(filePath).toLowerCase());
 }
 
