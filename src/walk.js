@@ -17,6 +17,12 @@ export function isIgnoredDir(name) {
   return IGNORED_DIRS.has(name) || name.startsWith('.');
 }
 
+// True if any directory in a root-relative path is one the walk skips - so a
+// file hidden from the tree can't be fetched by typing its path either.
+export function isHiddenPath(relPath) {
+  return relPath.split(/[\\/]/).slice(0, -1).some(isIgnoredDir);
+}
+
 export function isPreviewable(filePath) {
   if (IGNORED_FILES.has(path.basename(filePath).toLowerCase())) return false;
   return PREVIEWABLE_EXTS.has(path.extname(filePath).toLowerCase());
