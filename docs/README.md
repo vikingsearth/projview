@@ -16,6 +16,9 @@ faults. use this tree while iterating on the tool.
 | diagrams | [architecture](diagrams/architecture.mmd) | standalone valid flowchart |
 | diagrams | [sequence](diagrams/sequence.mmd) | standalone valid sequence |
 | diagrams | [broken diagram](diagrams/broken-diagram.mmd) | **invalid mermaid** - error card test |
+| data | [minified json](data/minified.json) | one-line JSON -> pretty-printed, big int kept exact |
+| data | [not-strict json](data/not-strict.jsonc.json) | JSONC with comments - shown as-is with a notice |
+| data | [values.yaml](data/values.yaml) | helm-style YAML - indent guides, block scalar, multi-doc |
 | reference | [api](reference/api.md) | long doc - TOC + scroll-spy |
 | reference | [glossary](reference/glossary.md) | cross-links + external links |
 | edge | [syntax stress](edge-cases/syntax-stress.md) | gnarly markdown + inline broken fence |

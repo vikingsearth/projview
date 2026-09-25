@@ -2,7 +2,7 @@
 
 a fast, zero-config local viewer for **markdown** + **mermaid** files. run it in
 any directory, get a soft-dark cartoonish localhost view of every `.md` / `.mmd`
-under it - rendered diagrams, search, live reload - close it and nothing's left
+(plus `.json` / `.yaml`) under it - rendered diagrams, search, live reload - close it and nothing's left
 behind.
 
 that's the product. point it at a docs folder, read comfortably, ctrl-c, gone.
@@ -33,8 +33,9 @@ projview /path/to/notes --no-open
 
 | | |
 | --- | --- |
-| tree nav | every `.md` / `.mmd` under the root (skips `node_modules`, `dist`, dot-dirs) |
+| tree nav | every `.md` / `.mmd` / `.json` / `.yml` / `.yaml` under the root (skips `node_modules`, `dist`, dot-dirs, lockfiles) |
 | rendering | markdown + syntax-highlighted code + **mermaid diagrams** (with pan/zoom) |
+| data files | JSON pretty-printed (literals kept exact), YAML shown as written - both with line numbers + indent guides |
 | search | `⌘K` palette - fuzzy filenames + full-text content with line snippets |
 | live reload | edit a file, the browser updates |
 | ephemeral | in-memory by default; nothing written to disk, nothing left behind |
