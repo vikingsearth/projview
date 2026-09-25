@@ -6,10 +6,8 @@ export const SVG_DIAGRAM = `<svg viewBox="0 0 24 24" fill="none" stroke="current
 
 export const SVG_DATA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>`;
 
-// .md -> 'md', .mmd -> 'mmd', .json / .yml / .yaml -> 'data'
-export const fileKind = (name) => {
-  const ext = (name.match(/\.[^./]+$/)?.[0] || '').toLowerCase();
-  return ext === '.mmd' ? 'mmd' : ['.json', '.yml', '.yaml'].includes(ext) ? 'data' : 'md';
-};
+// The client's one list of previewable types: ext -> kind (null if not previewable).
+const KINDS = { '.md': 'md', '.mmd': 'mmd', '.json': 'data', '.yml': 'data', '.yaml': 'data' };
+export const fileKind = (name) => KINDS[(name.match(/\.[^./]+$/)?.[0] || '').toLowerCase()] || null;
 
 export const fileIcon = (name) => ({ mmd: SVG_DIAGRAM, data: SVG_DATA }[fileKind(name)] || SVG_FILE);
