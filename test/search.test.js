@@ -37,3 +37,10 @@ test('fuzzyScore: subsequence scores, contiguous scores higher, miss is null', (
   assert.ok(fuzzyScore('configuration.md', 'config') > fuzzyScore('configuration.md', 'cfg'));
   assert.equal(fuzzyScore('abc', 'xyz'), null);
 });
+
+test('JSON snippets carry the line number shown in the viewer (re-indented), not the raw one', () => {
+  const hit = search('grpc').content.find((c) => c.path === 'data/minified.json');
+  assert.ok(hit, 'minified.json matches');
+  assert.ok(hit.snippets[0].line > 1, 'the minified source is one line; the displayed match is further down');
+  assert.match(hit.snippets[0].text, /"name": "grpc"/);
+});

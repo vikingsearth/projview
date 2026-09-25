@@ -1,6 +1,7 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { buildTree } from './walk.js';
+import { jsonDisplayText } from './render.js';
 import { createStore } from './store.js';
 
 // In-memory index: relPath -> { path, name, content, lower }. Search always runs
@@ -17,6 +18,8 @@ function flattenFiles(nodes, acc = []) {
 }
 
 function addToIndex(rel, content) {
+  // index JSON as displayed (re-indented) so snippet line numbers match the viewer
+  if (rel.toLowerCase().endsWith('.json')) content = jsonDisplayText(content).text;
   index.set(rel, { path: rel, name: rel.split('/').pop(), content, lower: content.toLowerCase() });
 }
 
