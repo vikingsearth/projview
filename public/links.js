@@ -26,6 +26,6 @@ contentEl.addEventListener('click', (e) => {
 
   const [pathPart, frag] = href.split('#');
   const target = resolveRelative(state.currentPath, pathPart);
-  if (/\.(md|mmd)$/i.test(target)) openFile(target, frag);
-  else toast(`can't preview "${pathPart}" - only .md / .mmd for now`);
+  if (/\.(md|mmd|json|ya?ml)$/i.test(target)) openFile(target, frag);
+  else toast(`can't preview "${pathPart}" - only .md / .mmd / .json / .yaml for now`);
 });
