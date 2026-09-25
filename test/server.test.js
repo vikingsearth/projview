@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { startServer, isLoopbackHost } from '../src/server.js';
 import { createStore } from '../src/store.js';
@@ -90,4 +90,22 @@ test('POST without an author defaults to the git/OS user (not anonymous)', async
   assert.ok(typeof c.author === 'string' && c.author.length > 0);   // server filled it in
   await close();
   rmSync(db, { force: true });
+});
+
+test('/api/file refuses files under dirs the tree hides (dot-dirs, node_modules)', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'projview-hidden-'));
+  for (const [rel, body] of [['.secret/creds.json', '{"token":"x"}'], ['node_modules/pkg/package.json', '{}'], ['ok.json', '{}']]) {
+    mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    writeFileSync(path.join(root, rel), body);
+  }
+  const { port, close } = await startServer(root, { port: 41750, host: '127.0.0.1', store: { kind: 'memory' } });
+  const status = async (p) => (await fetch(`http://127.0.0.1:${port}/api/file?p=${encodeURIComponent(p)}`)).status;
+  try {
+    assert.equal(await status('ok.json'), 200);
+    assert.equal(await status('.secret/creds.json'), 400);
+    assert.equal(await status('node_modules/pkg/package.json'), 400);
+  } finally {
+    await close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });
