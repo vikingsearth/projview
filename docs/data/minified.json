@@ -1,0 +1,1 @@
+{"name":"lgtm","version":"2.4.1","replicas":3,"bigId":12345678901234567890,"enabled":true,"labels":{"app.kubernetes.io/name":"lgtm","tier":"observability"},"ports":[{"name":"http","port":3000},{"name":"grpc","port":9095}],"empty":{},"tags":[],"note":"commas, colons: and {braces} inside strings stay put"}

@@ -1,0 +1,36 @@
+# a helm-style values file - indentation is meaning, so it's shown as written
+replicaCount: 2
+
+image:
+  repository: ghcr.io/example/alloy
+  tag: "v1.4.2"
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+config: |
+  logging {
+    level = "info"
+  }
+
+  discovery.kubernetes "pods" {
+    role = "pod"
+  }
+
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: observability
+    effect: NoSchedule
+---
+# second document in the same file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-extra
