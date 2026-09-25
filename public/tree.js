@@ -1,7 +1,7 @@
 /* left-nav file tree: render, expand/collapse, reveal */
 
 import { $, esc, cssEsc } from './dom.js';
-import { SVG_FOLDER, fileIcon } from './icons.js';
+import { SVG_FOLDER, fileIcon, fileKind } from './icons.js';
 import { state } from './store.js';
 import { openFile } from './viewer.js';
 
@@ -70,7 +70,7 @@ function renderFileRow(node) {
   row.dataset.path = node.path;
   row.innerHTML =
     `<span class="twist"></span>` +
-    `<span class="ico ico-${node.ext === '.mmd' ? 'mmd' : 'md'}">${fileIcon(node.ext)}</span>` +
+    `<span class="ico ico-${fileKind(node.name)}">${fileIcon(node.name)}</span>` +
     `<span class="label">${esc(node.name)}</span>`;
   row.addEventListener('click', () => openFile(node.path));
   return row;
