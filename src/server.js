@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chokidar from 'chokidar';
 
-import { buildTree, isIgnoredDir, isPreviewable } from './walk.js';
+import { buildTree, isHiddenPath, isIgnoredDir, isPreviewable } from './walk.js';
 import { renderFile } from './render.js';
 import { buildIndex, updateFile, removeFile, search } from './search.js';
 import { createStore, gitOrOsUser } from './store.js';
@@ -116,7 +116,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     if (pathname === '/api/file') {
       const rel = url.searchParams.get('p') || '';
       const abs = resolveInRoot(root, rel);
-      if (!abs || !isPreviewable(abs)) {
+      if (!abs || !isPreviewable(abs) || isHiddenPath(path.relative(root, abs))) {
         sendJson(res, { error: 'invalid path' }, 400);
         return;
       }
