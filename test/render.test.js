@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderMarkdown, renderMermaid, renderFile, formatJson, renderJson, renderYaml } from '../src/render.js';
+import { renderMarkdown, renderMermaid, renderFile, formatJson, renderJson, renderYaml, LINE_LIMIT } from '../src/render.js';
 
 test('headings get slug ids (pv- prefixed to avoid collisions)', () => {
   assert.match(renderMarkdown('# Hello World'), /<h1[^>]*id="pv-hello-world"/);
@@ -77,4 +77,21 @@ test('code view lines are self-contained when a span crosses a newline', () => {
 
 test('renderFile routes .json / .yml / .yaml to the code view', () => {
   for (const ext of ['.json', '.yml', '.yaml']) assert.match(renderFile(ext, '{}'), /code-view/);
+});
+
+test('renderJson pretty-prints valid JSON that starts with a BOM', () => {
+  const html = renderJson('\uFEFF{"a":1}');
+  assert.doesNotMatch(html, /data-notice/);
+  assert.equal((html.match(/class="cl"/g) || []).length, 3);
+});
+
+test('indent step ignores a stray odd-indented line', () => {
+  const yaml = 'a:\n    b:\n        c: 1\n    run: |\n       odd three-space line\n    d: 2\n';
+  assert.match(renderYaml(yaml), /style="--step:4"/);
+});
+
+test('files past the line limit render only the head, with a notice', () => {
+  const html = renderYaml(Array.from({ length: LINE_LIMIT + 5 }, (_, i) => `k${i}: v`).join('\n'));
+  assert.equal((html.match(/class="cl"/g) || []).length, LINE_LIMIT);
+  assert.match(html, /data-notice">showing the first 50,000 of 50,005 lines/);
 });

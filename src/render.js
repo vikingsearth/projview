@@ -147,16 +147,37 @@ function splitHighlightedLines(html) {
 }
 
 const leadingIndent = (line) => line.match(/^[ \t]*/)[0].replace(/\t/g, '  ').length;
-const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+
+// The file's indent unit: the most common step between a line and a deeper next
+// line. A mode, not a gcd, so one oddly indented line can't skew it. Default 2.
+function indentStep(indents) {
+  const counts = new Map();
+  let prev = 0;
+  for (const n of indents) {
+    if (n === -1) continue;
+    const d = n - prev;
+    if (d >= 2 && d <= 8) counts.set(d, (counts.get(d) || 0) + 1);
+    prev = n;
+  }
+  let best = 2, bestCount = 0;
+  for (const [d, c] of counts) if (c > bestCount || (c === bestCount && d < best)) { best = d; bestCount = c; }
+  return best;
+}
 
 // Big files skip syntax highlighting - hljs gets slow and nobody reads 2MB of JSON by colour.
 const HIGHLIGHT_LIMIT = 2_000_000;
+// Past this many lines only the head is rendered - the DOM, not the server, is the limit.
+export const LINE_LIMIT = 50_000;
 
 // A code view with line numbers and indent guides. Each line carries its
 // indent depth (--i) so CSS can draw one guide per level (--step columns apart).
 function renderCodeView(code, lang, note = '') {
-  const raw = code.replace(/\r\n?/g, '\n').replace(/\n$/, '');
-  const rawLines = raw.split('\n');
+  let rawLines = code.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n');
+  if (rawLines.length > LINE_LIMIT) {
+    note += notice(`showing the first ${LINE_LIMIT.toLocaleString('en')} of ${rawLines.length.toLocaleString('en')} lines`);
+    rawLines = rawLines.slice(0, LINE_LIMIT);
+  }
+  const raw = rawLines.join('\n');
   const html = raw.length <= HIGHLIGHT_LIMIT && hljs.getLanguage(lang)
     ? hljs.highlight(raw, { language: lang, ignoreIllegals: true }).value
     : escapeHtml(raw);
@@ -164,33 +185,40 @@ function renderCodeView(code, lang, note = '') {
 
   // blank lines borrow the shallower neighbour's indent so guides don't break
   const indents = rawLines.map((l) => (l.trim() ? leadingIndent(l) : -1));
-  const step = indents.filter((n) => n > 0).reduce(gcd, 0);
+  const step = indentStep(indents);
   const next = new Array(indents.length);
   for (let i = indents.length - 1, n = 0; i >= 0; i--) next[i] = n = indents[i] === -1 ? n : indents[i];
   for (let i = 0, prev = 0; i < indents.length; i++) {
     if (indents[i] === -1) indents[i] = Math.min(prev, next[i]);
     else prev = indents[i];
   }
-  const guideStep = step >= 2 && step <= 8 ? step : 2;
 
   const body = lines
     .map((l, i) => `<span class="cl" style="--i:${indents[i]}"><span class="lc">${l}</span></span>`)
     .join('');
-  return `${note}<pre class="hljs code-view" data-lang="${lang}" style="--step:${guideStep}"><code>${body}</code></pre>\n`;
+  return `${note}<pre class="hljs code-view" data-lang="${lang}" style="--step:${step}"><code>${body}</code></pre>\n`;
 }
 
 const notice = (msg) => `<div class="data-notice">${escapeHtml(msg)}</div>\n`;
 
-// JSON: pretty-printed when valid; shown as-is (with a note) when it isn't -
-// e.g. JSONC with comments, or a genuinely broken file.
-export function renderJson(content) {
+// The text a JSON file is displayed as: re-indented when valid, as written when
+// not (e.g. JSONC). Shared with the search index so snippet line numbers match
+// the viewer's. A leading BOM is dropped - JSON.parse rejects it.
+export function jsonDisplayText(content) {
+  const src = content.replace(/^\uFEFF/, '');
+  if (!src.trim()) return { text: '' };
   try {
-    JSON.parse(content);
+    JSON.parse(src);
   } catch (err) {
-    if (!content.trim()) return renderCodeView('', 'json');
-    return renderCodeView(content, 'json', notice(`not strict JSON, shown as-is - ${err.message}`));
+    return { text: src, error: err.message };
   }
-  return renderCodeView(formatJson(content), 'json');
+  return { text: formatJson(src) };
+}
+
+// JSON: pretty-printed when valid; shown as-is (with a note) when it isn't.
+export function renderJson(content) {
+  const { text, error } = jsonDisplayText(content);
+  return renderCodeView(text, 'json', error ? notice(`not strict JSON, shown as-is - ${error}`) : '');
 }
 
 // YAML: indentation is meaning, so it's shown exactly as written (highlighted,
