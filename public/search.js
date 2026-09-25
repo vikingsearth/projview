@@ -1,15 +1,13 @@
 /* projview cmd+K search palette - fuzzy filenames + full-text contents */
 
 import { $, esc } from './dom.js';
-import { SVG_FILE, SVG_DIAGRAM } from './icons.js';
+import { fileIcon as icon } from './icons.js';
 import { openFile } from './viewer.js';
 
 const paletteEl = $('palette');
 const inputEl = $('palette-input');
 const resultsEl = $('palette-results');
 const openBtn = $('open-palette');
-
-const icon = (name) => (name.endsWith('.mmd') ? SVG_DIAGRAM : SVG_FILE);
 
 let selectable = [];     // flat list of openable results
 let selected = 0;
