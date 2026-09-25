@@ -14,17 +14,26 @@ test('isIgnoredDir flags noise dirs and dot-dirs', () => {
   assert.equal(isIgnoredDir('docs'), false);
 });
 
-test('isPreviewable accepts only md/mmd (case-insensitive)', () => {
+test('isPreviewable accepts md/mmd/json/yaml (case-insensitive)', () => {
   assert.equal(isPreviewable('a.md'), true);
   assert.equal(isPreviewable('a.mmd'), true);
   assert.equal(isPreviewable('A.MD'), true);
+  assert.equal(isPreviewable('a.json'), true);
+  assert.equal(isPreviewable('a.yml'), true);
+  assert.equal(isPreviewable('A.YAML'), true);
   assert.equal(isPreviewable('a.txt'), false);
   assert.equal(isPreviewable('a.png'), false);
   assert.equal(isPreviewable('noext'), false);
 });
 
-test('buildTree indexes the docs fixtures (16 files)', () => {
-  assert.equal(countFiles(buildTree(DOCS)), 16);
+test('isPreviewable skips lockfiles', () => {
+  assert.equal(isPreviewable('package-lock.json'), false);
+  assert.equal(isPreviewable('sub/pnpm-lock.yaml'), false);
+  assert.equal(isPreviewable('package.json'), true);
+});
+
+test('buildTree indexes the docs fixtures (19 files)', () => {
+  assert.equal(countFiles(buildTree(DOCS)), 19);
 });
 
 test('buildTree sorts dirs before files at each level', () => {

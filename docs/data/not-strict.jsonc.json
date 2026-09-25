@@ -1,0 +1,4 @@
+{
+  // comments make this JSONC, not JSON - shown as-is with a note
+  "compilerOptions": { "strict": true },
+}
