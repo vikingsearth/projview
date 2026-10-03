@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write        # required for npm publish provenance (OIDC)
+      id-token: write        # npm trusted publishing (OIDC) - no NPM_TOKEN needed
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -21,9 +21,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # authenticates via npm trusted publishing (package settings -> trusted
+      # publisher: vikingsearth/projview, release.yml); provenance is automatic
+      - run: npm publish --access public
 
   image:
     runs-on: ubuntu-latest
