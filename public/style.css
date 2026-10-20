@@ -442,7 +442,11 @@ body.toc-empty #toc-reopen { display: none; }
 
 /* the page is the point: the outline goes first, then the side panel slims down */
 @media (max-width: 1100px) {
-  #toc, #toc-reopen { display: none !important; }
+  /* the outline becomes an overlay you open from the corner button */
+  #toc { display: none; position: fixed; top: 0; right: 0; z-index: 25; box-shadow: var(--shadow); }
+  #toc-reopen { display: block; }
+  body.toc-open #toc { display: flex; }
+  body.toc-open #toc-reopen, body.toc-empty #toc-reopen, body.toc-empty #toc { display: none; }
 }
 @media (max-width: 800px) {
   #sidebar { width: 220px; flex-basis: 220px; }
