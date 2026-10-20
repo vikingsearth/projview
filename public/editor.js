@@ -6,6 +6,7 @@ import { $, esc } from './dom.js';
 import { state } from './store.js';
 import { openFile } from './viewer.js';
 import { toast } from './toast.js';
+import { runMermaid } from './mermaid.js';
 
 const contentEl = $('content');
 const breadcrumbEl = $('breadcrumb');
@@ -92,7 +93,11 @@ async function startEditing(p) {
         `<button class="editor-btn primary" data-act="save">save</button>` +
       `</div>` +
       `<div class="editor-notice" hidden></div>` +
-      `<textarea class="editor-text" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>` +
+      `<div class="editor-panes" style="--split:${readSplit()}%">` +
+        `<textarea class="editor-text" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>` +
+        `<div class="editor-divider" role="separator" aria-orientation="vertical" aria-label="resize editor and preview" tabindex="0" title="drag to resize · double-click to reset"></div>` +
+        `<div class="editor-preview markdown-body"></div>` +
+      `</div>` +
     `</div>`;
   const textarea = contentEl.querySelector('.editor-text');
   textarea.value = text;
@@ -101,13 +106,98 @@ async function startEditing(p) {
   markView('edit');
 
   const dirtyEl = contentEl.querySelector('.editor-dirty');
-  textarea.addEventListener('input', () => { dirtyEl.hidden = !isDirty(); });
+  const previewEl = contentEl.querySelector('.editor-preview');
+  textarea.addEventListener('input', () => { dirtyEl.hidden = !isDirty(); schedulePreview(p, textarea, previewEl); });
+  textarea.addEventListener('scroll', () => syncScroll(textarea, previewEl));
+  wireDivider(contentEl.querySelector('.editor-panes'), contentEl.querySelector('.editor-divider'));
+  renderPreview(p, textarea, previewEl);
   textarea.addEventListener('keydown', onKey);
   contentEl.querySelector('[data-act="save"]').addEventListener('click', () => save());
   contentEl.querySelector('[data-act="cancel"]').addEventListener('click', cancel);
   textarea.focus();
   textarea.setSelectionRange(0, 0);
 }
+
+/* ---------- live preview (right pane) ---------- */
+
+let previewTimer = 0;
+let previewSeq = 0;
+
+function schedulePreview(p, textarea, previewEl) {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => renderPreview(p, textarea, previewEl), 250);
+}
+
+// Rendered by the server exactly as the viewer renders the file, but from the
+// unsaved text - nothing is written. Out-of-order responses are dropped.
+async function renderPreview(p, textarea, previewEl) {
+  const seq = ++previewSeq;
+  let html;
+  try {
+    const res = await fetch('/api/preview', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: p, content: textarea.value })
+    });
+    if (!res.ok) throw new Error();
+    ({ html } = await res.json());
+  } catch {
+    return;   // keep the last good preview
+  }
+  if (seq !== previewSeq || !previewEl.isConnected) return;
+  previewEl.innerHTML = html;
+  await runMermaid();
+  syncScroll(textarea, previewEl);
+}
+
+// Proportional: the preview sits at the same fraction of its height as the source.
+function syncScroll(textarea, previewEl) {
+  const max = textarea.scrollHeight - textarea.clientHeight;
+  const frac = max > 0 ? textarea.scrollTop / max : 0;
+  previewEl.scrollTop = frac * (previewEl.scrollHeight - previewEl.clientHeight);
+}
+
+/* ---------- resizable split ---------- */
+
+const SPLIT_KEY = 'pv-editor-split';
+const clampSplit = (n) => Math.min(80, Math.max(20, n));
+
+function readSplit() {
+  try { const n = Number(localStorage.getItem(SPLIT_KEY)); return n ? clampSplit(n) : 50; } catch { return 50; }
+}
+function saveSplit(n) {
+  try { localStorage.setItem(SPLIT_KEY, String(Math.round(n))); } catch { /* not persisted - fine */ }
+}
+
+function wireDivider(panes, divider) {
+  let split = readSplit();
+  const set = (n) => { split = clampSplit(n); panes.style.setProperty('--split', `${split}%`); };
+  divider.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    divider.setPointerCapture(e.pointerId);
+    panes.classList.add('resizing');
+    const move = (ev) => {
+      const r = panes.getBoundingClientRect();
+      set(((ev.clientX - r.left) / r.width) * 100);
+    };
+    const up = () => {
+      divider.removeEventListener('pointermove', move);
+      panes.classList.remove('resizing');
+      saveSplit(split);
+    };
+    divider.addEventListener('pointermove', move);
+    divider.addEventListener('pointerup', up, { once: true });
+  });
+  divider.addEventListener('dblclick', () => { set(50); saveSplit(50); });
+  divider.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    set(split + (e.key === 'ArrowLeft' ? -5 : 5));
+    saveSplit(split);
+  });
+}
+
+/* ---------- keys ---------- */
 
 function onKey(e) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
