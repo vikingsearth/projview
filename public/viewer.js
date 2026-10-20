@@ -9,6 +9,7 @@ import { buildToc } from './toc.js';
 import { toast } from './toast.js';
 import { onFileRendered } from './comments.js';
 import { isEditing, confirmLeave, onFileShown, hasRawView } from './editor.js';
+import { leaveHistory } from './history.js';
 
 const contentEl = $('content');
 const viewerEl = $('viewer');
@@ -19,6 +20,7 @@ export async function openFile(p, fragment, highlight) {
     location.hash = encodeURIComponent(state.currentPath);
     return;
   }
+  leaveHistory();
   state.currentPath = p;
   location.hash = encodeURIComponent(p);
   revealInTree(p);

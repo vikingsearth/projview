@@ -6,6 +6,7 @@ import { loadTree } from './tree.js';
 import { openFile } from './viewer.js';
 import { refreshComments } from './comments.js';
 import { isEditing, onDiskChange } from './editor.js';
+import { isHistory, refreshHistory } from './history.js';
 
 const versionEl = $('version');
 
@@ -16,6 +17,7 @@ export function connectEvents() {
     if (path !== state.currentPath) return;
     pulse();
     if (isEditing(path)) onDiskChange();   // never re-render over an open editor
+    else if (isHistory(path)) setTimeout(refreshHistory, 300);   // the new version lands just after the change event
     else openFile(path);
   });
   es.addEventListener('tree', async () => { pulse(); await loadTree(); });
