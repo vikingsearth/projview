@@ -8,7 +8,7 @@ import { connectEvents } from './live.js';
 // side-effect modules: each attaches its own listeners on import
 import './links.js';
 import './toc.js';
-import './mermaid.js';
+import { lightScheme } from './mermaid.js';
 import './search.js';
 import './comments.js';
 
@@ -17,6 +17,9 @@ window.addEventListener('hashchange', () => {
   const p = decodeURIComponent(location.hash.slice(1));
   if (p && p !== state.currentPath) openFile(p);   // guard prevents self-trigger loop
 });
+
+// OS light/dark switch: CSS follows on its own; diagrams are baked SVG, so re-render
+lightScheme.addEventListener('change', () => { if (state.currentPath) openFile(state.currentPath); });
 
 async function boot() {
   await loadTree();

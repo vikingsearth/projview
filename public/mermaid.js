@@ -9,15 +9,18 @@ const zoomInnerEl = $('zoom-inner');
 
 let mermaidSeq = 0;               // unique id source for mermaid.render
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  suppressErrorRendering: true   // we render our own error card; don't inject the default bomb
-});
+// Diagrams follow the OS light/dark setting, read at render time so a theme
+// switch mid-session takes effect on the next render (main.js re-renders on change).
+export const lightScheme = matchMedia('(prefers-color-scheme: light)');
 
 // Render each .mermaid block individually so one bad diagram can't kill the rest.
 export async function runMermaid() {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: lightScheme.matches ? 'neutral' : 'dark',
+    securityLevel: 'loose',
+    suppressErrorRendering: true   // we render our own error card; don't inject the default bomb
+  });
   const nodes = [...contentEl.querySelectorAll('.mermaid')];
   for (const node of nodes) {
     const src = node.textContent.trim();
