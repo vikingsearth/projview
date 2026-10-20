@@ -147,6 +147,17 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       return;
     }
 
+    // --- live preview: render unsaved editor text (never touches disk) ---
+    if (pathname === '/api/preview' && req.method === 'POST') {
+      const body = await readBody(req, 10_000_000);
+      if (!body || typeof body.path !== 'string' || typeof body.content !== 'string' || !isPreviewable(body.path)) {
+        sendJson(res, { error: 'path and content are required' }, 400);
+        return;
+      }
+      sendJson(res, { html: renderFile(path.extname(body.path).toLowerCase(), body.content) });
+      return;
+    }
+
     // --- raw source: read (GET) + save (PUT) for the in-browser editor ---
     if (pathname === '/api/source') {
       if (req.method === 'PUT') {
