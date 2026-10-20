@@ -171,7 +171,8 @@ export const LINE_LIMIT = 50_000;
 
 // A code view with line numbers and indent guides. Each line carries its
 // indent depth (--i) so CSS can draw one guide per level (--step columns apart).
-function renderCodeView(code, lang, note = '') {
+// lineAttrs: optional Map of line index -> extra attributes for that line's span.
+function renderCodeView(code, lang, note = '', lineAttrs = null) {
   let rawLines = code.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n');
   if (rawLines.length > LINE_LIMIT) {
     note += notice(`showing the first ${LINE_LIMIT.toLocaleString('en')} of ${rawLines.length.toLocaleString('en')} lines`);
@@ -194,7 +195,7 @@ function renderCodeView(code, lang, note = '') {
   }
 
   const body = lines
-    .map((l, i) => `<span class="cl" style="--i:${indents[i]}"><span class="lc">${l}</span></span>`)
+    .map((l, i) => `<span class="cl" style="--i:${indents[i]}"${lineAttrs?.get(i) || ''}><span class="lc">${l}</span></span>`)
     .join('');
   return `${note}<pre class="hljs code-view" data-lang="${lang}" style="--step:${step}"><code>${body}</code></pre>\n`;
 }
@@ -231,7 +232,21 @@ export function renderYaml(content) {
 // (highlighted, numbered, with indent guides), exactly as written.
 const SOURCE_LANG = { '.md': 'markdown', '.mmd': 'plaintext' };
 export function renderSource(ext, content) {
-  return renderCodeView(content, SOURCE_LANG[ext] || 'plaintext');
+  return renderCodeView(content, SOURCE_LANG[ext] || 'plaintext', '', ext === '.md' ? headingLines(content) : null);
+}
+
+// h1-h3 source lines of a markdown file, tagged with the same ids the rendered
+// view gives its headings - so the outline and #fragment links work in raw too.
+function headingLines(content) {
+  const attrs = new Map();
+  const tokens = md.parse(content, {});   // core rules run here, heading_anchors included
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.type !== 'heading_open' || !t.map || !['h1', 'h2', 'h3'].includes(t.tag)) continue;
+    const label = escapeHtml(tokens[i + 1]?.content || '').replace(/"/g, '&quot;');
+    attrs.set(t.map[0], ` id="${t.attrGet('id')}" data-toc="${t.tag}" data-toc-label="${label}"`);
+  }
+  return attrs;
 }
 
 export function renderFile(ext, content) {
