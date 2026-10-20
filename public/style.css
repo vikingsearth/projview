@@ -732,7 +732,8 @@ h1:hover > .cmt-head-add, h2:hover > .cmt-head-add, h3:hover > .cmt-head-add { o
 .view-switch button.on { background: var(--surface0); color: var(--text); }
 
 body.editing #toc, body.editing #toc-reopen, body.editing .cmt-fab, body.editing .cmt-drawer { display: none; }
-body.editing #content { max-width: 1100px; padding-bottom: 30px; }
+body.editing #content { max-width: none; padding-bottom: 30px; }
+body.editing .cmt-selchip { display: none; }
 
 .editor { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 120px); }
 .editor-bar { display: flex; align-items: center; gap: 10px; font-size: 13px; }
@@ -753,8 +754,31 @@ body.editing #content { max-width: 1100px; padding-bottom: 30px; }
   background: color-mix(in srgb, var(--peach) 7%, transparent); color: var(--peach); font-size: 12.5px;
 }
 .editor-notice[hidden] { display: none; }
+.editor-panes {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: var(--split, 50%) 10px minmax(0, 1fr);
+}
+.editor-panes.resizing { cursor: col-resize; user-select: none; }
+.editor-divider { cursor: col-resize; position: relative; }
+.editor-divider::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px;
+  border-radius: 2px; background: transparent; transition: background 0.12s ease;
+}
+.editor-divider:hover::after, .editor-divider:focus-visible::after,
+.editor-panes.resizing .editor-divider::after { background: var(--mauve); }
+.editor-divider:focus { outline: none; }
+.editor-preview {
+  min-width: 0; overflow: auto;
+  border: 1px solid var(--surface0); border-radius: var(--radius);
+  padding: 4px 24px 24px;
+}
+.editor-preview > :first-child { margin-top: 18px; }
+@media (max-width: 800px) {
+  .editor-panes { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; gap: 10px; }
+  .editor-divider { display: none; }
+}
 .editor-text {
-  flex: 1; width: 100%; resize: none;
+  width: 100%; height: 100%; min-width: 0; resize: none;
   background: var(--crust); color: var(--text);
   border: 1px solid var(--surface0); border-radius: var(--radius);
   padding: 14px 16px; font-family: var(--mono); font-size: 13px; line-height: 1.6; tab-size: 2;
