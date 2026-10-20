@@ -38,6 +38,7 @@ projview /path/to/notes --no-open
 | data files | JSON pretty-printed (literals kept exact), YAML shown as written - both with line numbers + indent guides |
 | search | `⌘K` palette - fuzzy filenames + full-text content with line snippets |
 | live reload | edit a file, the browser updates |
+| source editor | `edit` (or press `e`) swaps the page for its raw text; `⌘S` saves to disk. local runs only - read-only when exposed on a network |
 | ephemeral | in-memory by default; nothing written to disk, nothing left behind |
 
 see [samples/architecture.md](samples/architecture.md) for a mermaid demo.
