@@ -6,6 +6,15 @@
   <!-- we ship our own light + dark themes: tell the UA + Dark Reader to leave colors alone -->
   <meta name="color-scheme" content="dark light" />
   <meta name="darkreader-lock" />
+  <!-- resolve the saved theme before first paint (theme.js owns it after load) -->
+  <script>
+    (function () {
+      var p = 'system';
+      try { p = localStorage.getItem('pv-theme') || 'system'; } catch (e) {}
+      var light = p === 'light' || (p !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches);
+      document.documentElement.dataset.theme = light ? 'light' : 'dark';
+    })();
+  </script>
   <title>projview</title>
   <link rel="stylesheet" href="/vendor/hljs.css" />
   <link rel="stylesheet" href="/style.css" />
@@ -28,6 +37,7 @@
         <strong class="wordmark"><span class="wm-proj">proj</span><span class="wm-view">view</span></strong>
         <small id="version" class="version"></small>
       </div>
+      <button id="theme-toggle" class="theme-toggle" title="theme"></button>
     </header>
     <button id="open-palette" class="open-palette" title="search (⌘K)">
       <span class="op-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span class="op-text">search…</span><kbd>⌘K</kbd>
