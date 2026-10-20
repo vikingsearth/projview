@@ -6,7 +6,8 @@
   <!-- we ship our own light + dark themes: tell the UA + Dark Reader to leave colors alone -->
   <meta name="color-scheme" content="dark light" />
   <meta name="darkreader-lock" />
-  <!-- resolve the saved theme before first paint (theme.js owns it after load) -->
+  <!-- resolve the saved theme before first paint (theme.js owns it after load;
+       the 'pv-theme' key and fallback must match theme.js) -->
   <script>
     (function () {
       var p = 'system';
