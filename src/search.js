@@ -17,10 +17,20 @@ function flattenFiles(nodes, acc = []) {
   return acc;
 }
 
-function addToIndex(rel, content) {
+function addToIndex(rel, source, mtime = null) {
   // index JSON as displayed (re-indented) so snippet line numbers match the viewer
-  if (rel.toLowerCase().endsWith('.json')) content = jsonDisplayText(content).text;
-  index.set(rel, { path: rel, name: rel.split('/').pop(), content, lower: content.toLowerCase() });
+  const content = rel.toLowerCase().endsWith('.json') ? jsonDisplayText(source).text : source;
+  index.set(rel, {
+    path: rel, name: rel.split('/').pop(), content, lower: content.toLowerCase(), mtime,
+    raw: content === source ? undefined : source   // kept only when it differs, for versions
+  });
+}
+
+// The file's text as last indexed - i.e. before the change being handled now.
+// The server turns it into a version when the file changes. null if never indexed.
+export function indexedSource(rel) {
+  const item = index.get(rel);
+  return item ? { content: item.raw ?? item.content, mtime: item.mtime } : null;
 }
 
 // Build the index for `root`. With a persisted store, loads the cached entries
@@ -51,7 +61,7 @@ export async function buildIndex(root, store) {
     return { path: f.path, name: f.name, ext: f.ext, mtime, content };
   }));
 
-  for (const e of entries) addToIndex(e.path, e.content);
+  for (const e of entries) addToIndex(e.path, e.content, e.mtime);
   await store.save(entries);
   return { store, total: entries.length, reindexed, warm: !!cached };
 }
@@ -62,7 +72,7 @@ export async function updateFile(rel) {
   const abs = path.join(theRoot, rel);
   try {
     const [content, stat] = await Promise.all([fsp.readFile(abs, 'utf8'), fsp.stat(abs)]);
-    addToIndex(rel, content);
+    addToIndex(rel, content, stat.mtimeMs);
     return { path: rel, name: rel.split('/').pop(), ext: path.extname(rel).toLowerCase(), mtime: stat.mtimeMs, content };
   } catch { return null; }
 }
