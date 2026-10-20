@@ -11,7 +11,9 @@ const zoomInnerEl = $('zoom-inner');
 let mermaidSeq = 0;               // unique id source for mermaid.render
 
 // Render each .mermaid block individually so one bad diagram can't kill the rest.
-export async function runMermaid() {
+// A block keeps its source in data-src, so it can be re-rendered in place (theme
+// flip) - otherwise blocks that are already rendered are left alone.
+export async function runMermaid({ rerender = false } = {}) {
   mermaid.initialize({
     startOnLoad: false,
     theme: currentTheme() === 'light' ? 'neutral' : 'dark',   // read per render: themes can flip mid-session
@@ -20,16 +22,21 @@ export async function runMermaid() {
   });
   const nodes = [...contentEl.querySelectorAll('.mermaid')];
   for (const node of nodes) {
-    const src = node.textContent.trim();
+    if (!node.dataset.src) node.dataset.src = node.textContent.trim();
+    else if (!rerender) continue;
+    const src = node.dataset.src;
+    node.classList.remove('rendered', 'mermaid-error');
     try {
       const { svg, bindFunctions } = await mermaid.render(`pv-mmd-${++mermaidSeq}`, src);
       node.innerHTML = svg;
       bindFunctions?.(node);
       node.classList.add('rendered');
       node.title = 'click to zoom';
-      node.addEventListener('click', () => openZoom(node.querySelector('svg')?.outerHTML || ''));
+      node.onclick = () => openZoom(node.querySelector('svg')?.outerHTML || '');
     } catch (err) {
       node.classList.add('mermaid-error');
+      node.onclick = null;
+      node.title = '';
       node.innerHTML =
         `<div class="diagram-error"><strong>⚠ diagram failed to render</strong>` +
         `<pre class="err-msg">${esc(String(err && err.message ? err.message : err))}</pre>` +
