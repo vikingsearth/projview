@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderMarkdown, renderMermaid, renderFile, formatJson, renderJson, renderYaml, LINE_LIMIT } from '../src/render.js';
+import { renderMarkdown, renderMermaid, renderFile, formatJson, renderJson, renderYaml, LINE_LIMIT, renderSource } from '../src/render.js';
 
 test('headings get slug ids (pv- prefixed to avoid collisions)', () => {
   assert.match(renderMarkdown('# Hello World'), /<h1[^>]*id="pv-hello-world"/);
@@ -94,4 +94,17 @@ test('files past the line limit render only the head, with a notice', () => {
   const html = renderYaml(Array.from({ length: LINE_LIMIT + 5 }, (_, i) => `k${i}: v`).join('\n'));
   assert.equal((html.match(/class="cl"/g) || []).length, LINE_LIMIT);
   assert.match(html, /data-notice">showing the first 50,000 of 50,005 lines/);
+});
+
+test('renderSource shows markdown as numbered source, not rendered html', () => {
+  const html = renderSource('.md', '# Title\n\n- item\n');
+  assert.match(html, /data-lang="markdown"/);
+  assert.equal((html.match(/class="cl"/g) || []).length, 3);
+  assert.doesNotMatch(html, /<h1/);
+});
+
+test('renderSource shows mermaid as plain source, not a diagram div', () => {
+  const html = renderSource('.mmd', 'flowchart LR\n  A --> B\n');
+  assert.doesNotMatch(html, /class="mermaid"/);
+  assert.match(html, /A --&gt; B/);
 });
