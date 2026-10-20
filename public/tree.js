@@ -12,10 +12,11 @@ let fileCount = 0;
 
 export async function loadTree() {
   const res = await fetch('/api/tree');
-  const { root, tree, version, writable } = await res.json();
+  const { root, tree, version, writable, persistent } = await res.json();
   state.treeData = tree;
   state.rootName = root;
   state.writable = !!writable;
+  state.persistent = !!persistent;
   document.title = `${root} · projview`;
   if (version) versionEl.textContent = `version ${version}`;
   renderTree();
