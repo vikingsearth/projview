@@ -5,6 +5,8 @@
  *   entries  - indexed files { path, name, ext, mtime, content }
  *   comments - notes on a file or a portion of it (see anchor model below)
  *   events   - usage signals { ts, type, file?, query?, count? }
+ *   versions - earlier text of a file { id, file, mtime, replacedAt, content },
+ *              newest VERSION_LIMIT kept per file (older ones are pruned)
  *
  * Backends:
  *   memory    - no disk persistence (ephemeral default; lives only this session)
@@ -68,6 +70,17 @@ const newEvent = (e) => ({
   query: e.query ?? null,
   count: e.count ?? null
 });
+
+// How many earlier versions of each file are kept.
+export const VERSION_LIMIT = 5;
+const newVersion = (v) => ({
+  id: randomUUID(),
+  file: v.file,
+  mtime: v.mtime ?? null,          // when this text was written (its file mtime)
+  replacedAt: v.replacedAt || Date.now(),
+  content: v.content
+});
+const versionMeta = ({ id, file, mtime, replacedAt, content }) => ({ id, file, mtime, replacedAt, size: Buffer.byteLength(content) });
 
 // Aggregate raw events into something a human / agent can read at a glance.
 function summarizeEvents(events) {
@@ -140,9 +153,25 @@ function fileFor(root, persist, ext) {
 function inMemoryDocs(flush = async () => {}) {
   const comments = new Map();   // id -> comment
   const events = [];            // append-only (stable ref - never reassigned)
+  const versions = [];          // oldest first (stable ref - pruned in place)
   return {
     comments,
     events,
+    versions,
+    async addVersion(v) {
+      const version = newVersion(v);
+      versions.push(version);
+      const mine = versions.filter((x) => x.file === version.file);
+      for (const old of mine.slice(0, Math.max(0, mine.length - VERSION_LIMIT))) versions.splice(versions.indexOf(old), 1);
+      await flush();
+      return versionMeta(version);
+    },
+    async listVersions(file) {
+      return versions.filter((x) => x.file === file).reverse().map(versionMeta);
+    },
+    async getVersion(id) {
+      return versions.find((x) => x.id === id) || null;
+    },
     async addComment(c) {
       const comment = newComment(c);
       comments.set(comment.id, comment);
@@ -189,6 +218,9 @@ function memoryStore() {
     deleteComment: docs.deleteComment,
     recordEvent: docs.recordEvent,
     usageStats: docs.usageStats,
+    addVersion: docs.addVersion,
+    listVersions: docs.listVersions,
+    getVersion: docs.getVersion,
     async close() {},
     describe() { return 'in-memory (ephemeral - nothing persisted)'; }
   };
@@ -202,7 +234,8 @@ function superliteStore(root, persist) {
     builtAt: Date.now(),
     entries: [...entries.values()],
     comments: [...docs.comments.values()],
-    events: docs.events
+    events: docs.events,
+    versions: docs.versions
   }));
   const docs = inMemoryDocs(() => (loaded ? flush() : Promise.resolve()));
   const ensure = async () => {
@@ -212,6 +245,7 @@ function superliteStore(root, persist) {
       for (const e of d.entries || []) entries.set(e.path, e);
       for (const c of d.comments || []) docs.comments.set(c.id, c);
       for (const ev of d.events || []) docs.events.push(ev);
+      for (const v of d.versions || []) docs.versions.push(v);
     } catch { /* fresh */ }
     loaded = true;
   };
@@ -228,6 +262,9 @@ function superliteStore(root, persist) {
     async deleteComment(id) { await ensure(); return docs.deleteComment(id); },
     async recordEvent(e) { await ensure(); return docs.recordEvent(e); },
     async usageStats() { await ensure(); return docs.usageStats(); },
+    async addVersion(v) { await ensure(); return docs.addVersion(v); },
+    async listVersions(f) { await ensure(); return docs.listVersions(f); },
+    async getVersion(id) { await ensure(); return docs.getVersion(id); },
     async close({ keep } = {}) {
       if (!persist && !keep) { try { await fsp.unlink(file); } catch { /* gone */ } }
     },
@@ -249,6 +286,7 @@ function sqliteAt(file, { cleanup }) {
     db.exec('CREATE TABLE IF NOT EXISTS files (path TEXT PRIMARY KEY, name TEXT, ext TEXT, mtime REAL, content TEXT)');
     db.exec('CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, file TEXT, anchor TEXT, body TEXT, author TEXT, createdAt REAL, resolved INTEGER)');
     db.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, ts REAL, type TEXT, file TEXT, query TEXT, count INTEGER)');
+    db.exec('CREATE TABLE IF NOT EXISTS versions (id TEXT PRIMARY KEY, file TEXT, mtime REAL, replacedAt REAL, content TEXT)');
     return db;
   };
   const writeComment = (d, c) => d
@@ -314,6 +352,23 @@ function sqliteAt(file, { cleanup }) {
       const d = await open();
       return summarizeEvents(d.prepare('SELECT type, file, query FROM events').all());
     },
+    async addVersion(v) {
+      const d = await open();
+      const version = newVersion(v);
+      d.prepare('INSERT INTO versions (id, file, mtime, replacedAt, content) VALUES (?, ?, ?, ?, ?)')
+        .run(version.id, version.file, version.mtime, version.replacedAt, version.content);
+      d.prepare('DELETE FROM versions WHERE file = ? AND id NOT IN (SELECT id FROM versions WHERE file = ? ORDER BY replacedAt DESC LIMIT ?)')
+        .run(version.file, version.file, VERSION_LIMIT);
+      return versionMeta(version);
+    },
+    async listVersions(file) {
+      const d = await open();
+      return d.prepare('SELECT * FROM versions WHERE file = ? ORDER BY replacedAt DESC').all(file).map(versionMeta);
+    },
+    async getVersion(id) {
+      const d = await open();
+      return d.prepare('SELECT * FROM versions WHERE id = ?').get(id) || null;
+    },
     async close({ keep } = {}) {
       if (db) { db.close(); db = null; }
       if (cleanup && !keep) { try { await fsp.unlink(file); } catch { /* gone */ } }
@@ -353,8 +408,11 @@ function postgresStore(url) {
     await client.query('CREATE TABLE IF NOT EXISTS projview_files (path TEXT PRIMARY KEY, name TEXT, ext TEXT, mtime DOUBLE PRECISION, content TEXT)');
     await client.query('CREATE TABLE IF NOT EXISTS projview_comments (id TEXT PRIMARY KEY, file TEXT, anchor TEXT, body TEXT, author TEXT, createdat DOUBLE PRECISION, resolved BOOLEAN)');
     await client.query('CREATE TABLE IF NOT EXISTS projview_events (id TEXT PRIMARY KEY, ts DOUBLE PRECISION, type TEXT, file TEXT, query TEXT, count INTEGER)');
+    await client.query('CREATE TABLE IF NOT EXISTS projview_versions (id TEXT PRIMARY KEY, file TEXT, mtime DOUBLE PRECISION, replacedat DOUBLE PRECISION, content TEXT)');
     return client;
   };
+  // postgres folds unquoted identifiers to lower case
+  const toVersion = (r) => ({ id: r.id, file: r.file, mtime: r.mtime == null ? null : Number(r.mtime), replacedAt: Number(r.replacedat), content: r.content });
   const writeComment = (c) => client.query(
     'INSERT INTO projview_comments (id, file, anchor, body, author, createdat, resolved) VALUES ($1, $2, $3, $4, $5, $6, $7)' +
       ' ON CONFLICT (id) DO UPDATE SET file = $2, anchor = $3, body = $4, author = $5, createdat = $6, resolved = $7',
@@ -427,6 +485,25 @@ function postgresStore(url) {
       const c = await open();
       const { rows } = await c.query('SELECT type, file, query FROM projview_events');
       return summarizeEvents(rows);
+    },
+    async addVersion(v) {
+      const c = await open();
+      const version = newVersion(v);
+      await c.query('INSERT INTO projview_versions (id, file, mtime, replacedat, content) VALUES ($1, $2, $3, $4, $5)',
+        [version.id, version.file, version.mtime, version.replacedAt, version.content]);
+      await c.query('DELETE FROM projview_versions WHERE file = $1 AND id NOT IN (SELECT id FROM projview_versions WHERE file = $1 ORDER BY replacedat DESC LIMIT $2)',
+        [version.file, VERSION_LIMIT]);
+      return versionMeta(version);
+    },
+    async listVersions(file) {
+      const c = await open();
+      const { rows } = await c.query('SELECT * FROM projview_versions WHERE file = $1 ORDER BY replacedat DESC', [file]);
+      return rows.map((r) => versionMeta(toVersion(r)));
+    },
+    async getVersion(id) {
+      const c = await open();
+      const { rows } = await c.query('SELECT * FROM projview_versions WHERE id = $1', [id]);
+      return rows.length ? toVersion(rows[0]) : null;
     },
     async close() { if (client) { await client.end(); client = null; } },   // never drop the user's tables
     describe() { return `custom/postgres ${redact(url)}`; }
