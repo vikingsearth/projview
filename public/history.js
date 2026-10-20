@@ -11,7 +11,7 @@ import { toast } from './toast.js';
 
 const contentEl = $('content');
 
-let open = null;   // { path, selected } while the history view is showing
+let open = null;   // { path, selected, mtime } while the history view is showing - mtime of the file as shown
 
 export const isHistory = (p) => !!open && (p === undefined || open.path === p);
 
@@ -31,16 +31,21 @@ export async function showHistory(p) {
 export async function refreshHistory() {
   if (!open) return;
   const p = open.path;
-  let data;
+  let data, mtime = null;
   try {
-    const res = await fetch(`/api/versions?p=${encodeURIComponent(p)}`);
+    const [res, src] = await Promise.all([
+      fetch(`/api/versions?p=${encodeURIComponent(p)}`),
+      state.writable ? fetch(`/api/source?p=${encodeURIComponent(p)}`) : null
+    ]);
     if (!res.ok) throw new Error();
     data = await res.json();
+    if (src?.ok) ({ mtime } = await src.json());
   } catch {
     toast(`couldn't load history for ${p}`);
     return;
   }
   if (!isHistory(p)) return;
+  open.mtime = mtime;   // restore checks the file is still what "current" showed
   const keep = state.persistent ? 'kept across runs' : 'kept until projview stops';
   const rows = [{ id: 'current', label: 'current', when: null }, ...data.versions.map((v) => { const when = v.mtime ?? v.replacedAt; return { id: v.id, label: clock(when), sub: ago(when), when, size: v.size }; })];
   if (!rows.some((r) => r.id === open.selected)) open.selected = 'current';
@@ -52,9 +57,9 @@ export async function refreshHistory() {
         `<span class="history-hint">last ${data.limit} earlier versions · ${keep}</span>` +
       `</div>` +
       `<div class="history-panes">` +
-        `<div class="history-list" role="listbox" aria-label="versions">` +
+        `<div class="history-list" aria-label="versions">` +
           rows.map((r) =>
-            `<button class="history-item" role="option" data-id="${esc(r.id)}"${r.when ? ` title="${esc(new Date(r.when).toLocaleString())}"` : ''}>` +
+            `<button class="history-item" data-id="${esc(r.id)}"${r.when ? ` title="${esc(new Date(r.when).toLocaleString())}"` : ''}>` +
               `<span class="hi-label">${esc(r.label)}${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</span>` +
               (r.size != null ? `<span class="hi-size">${fmtSize(r.size)}</span>` : '') +
             `</button>`).join('') +
@@ -74,7 +79,9 @@ async function select(id) {
   if (!open) return;
   const p = open.path;
   open.selected = id;
-  for (const b of contentEl.querySelectorAll('.history-item')) b.setAttribute('aria-selected', String(b.dataset.id === id));
+  for (const b of contentEl.querySelectorAll('.history-item')) {
+    if (b.dataset.id === id) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+  }
   const bar = contentEl.querySelector('.history-pane-bar');
   const preview = contentEl.querySelector('.history-preview');
 
@@ -114,12 +121,18 @@ async function select(id) {
 async function restore(p, version) {
   if (!confirm('restore this version? the current text is kept in history, so this can be undone.')) return;
   try {
-    const cur = await (await fetch(`/api/source?p=${encodeURIComponent(p)}`)).json();
+    // the mtime from when history loaded: if the file changed since, the save is
+    // refused (409) instead of overwriting a change the user never saw
     const res = await fetch('/api/source', {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path: p, content: version.content, mtime: cur.mtime })
+      body: JSON.stringify({ path: p, content: version.content, mtime: open?.mtime })
     });
+    if (res.status === 409) {
+      toast('the file changed since you opened history - check the new list and try again');
+      refreshHistory();
+      return;
+    }
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
   } catch (err) {
     toast(`restore failed - ${err.message}`);
