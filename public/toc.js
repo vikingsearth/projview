@@ -57,5 +57,12 @@ viewerEl.addEventListener('scroll', () => {
   spyRaf = requestAnimationFrame(() => { spyRaf = 0; updateScrollSpy(); });
 });
 
-$('toc-collapse').addEventListener('click', () => document.body.classList.add('toc-collapsed'));
-$('toc-reopen').addEventListener('click', () => document.body.classList.remove('toc-collapsed'));
+// wide: collapse / reopen the side panel. narrow: open / close it as an overlay.
+$('toc-collapse').addEventListener('click', () => {
+  document.body.classList.add('toc-collapsed');
+  document.body.classList.remove('toc-open');
+});
+$('toc-reopen').addEventListener('click', () => {
+  document.body.classList.remove('toc-collapsed');
+  document.body.classList.add('toc-open');
+});
