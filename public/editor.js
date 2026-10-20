@@ -7,6 +7,7 @@ import { state } from './store.js';
 import { openFile } from './viewer.js';
 import { toast } from './toast.js';
 import { runMermaid } from './mermaid.js';
+import { fileKind } from './icons.js';
 
 const contentEl = $('content');
 const breadcrumbEl = $('breadcrumb');
@@ -26,7 +27,7 @@ export function confirmLeave() {
 }
 
 // md / mmd render to something other than their source, so they get a raw view too.
-export const hasRawView = (p) => /\.(md|mmd)$/i.test(p);
+export const hasRawView = (p) => ['md', 'mmd'].includes(fileKind(p));
 
 // Called after every render: the view switcher in the breadcrumb bar.
 // md / mmd: rendered | raw | edit. json / yaml (already shown as source): edit.
@@ -62,7 +63,7 @@ function switchView(p, v) {
 
 // Live reload saw this file change while it was open in the editor.
 export function onDiskChange() {
-  if (!session) return;
+  if (!session || session.saving) return;   // our own save's change event - not a conflict
   showNotice('this file changed on disk since you opened it', [
     ['reload', () => { session.original = session.textarea.value; startEditing(session.path); }],
     ['keep mine', () => hideNotice()]
@@ -79,7 +80,8 @@ async function startEditing(p) {
     toast(`couldn't load ${p} for editing`);
     return;
   }
-  const crlf = data.content.includes('\r\n');
+  // only a consistently CRLF file is written back as CRLF; a mixed one is saved as LF
+  const crlf = data.content.includes('\r\n') && !/(^|[^\r])\n/.test(data.content);
   const text = crlf ? data.content.replace(/\r\n/g, '\n') : data.content;
 
   contentEl.innerHTML =
@@ -88,7 +90,7 @@ async function startEditing(p) {
         `<span class="editor-name">${esc(p.split('/').pop())}</span>` +
         `<span class="editor-dirty" hidden>unsaved</span>` +
         `<span class="editor-spacer"></span>` +
-        `<span class="editor-hint">⌘S save · esc cancel</span>` +
+        `<span class="editor-hint">⌘S save · esc cancel · ctrl-m tab focus</span>` +
         `<button class="editor-btn" data-act="cancel">cancel</button>` +
         `<button class="editor-btn primary" data-act="save">save</button>` +
       `</div>` +
@@ -181,12 +183,15 @@ function wireDivider(panes, divider) {
       set(((ev.clientX - r.left) / r.width) * 100);
     };
     const up = () => {
+      divider.removeEventListener('pointerup', up);
+      divider.removeEventListener('pointercancel', up);
       divider.removeEventListener('pointermove', move);
       panes.classList.remove('resizing');
       saveSplit(split);
     };
     divider.addEventListener('pointermove', move);
     divider.addEventListener('pointerup', up, { once: true });
+    divider.addEventListener('pointercancel', up, { once: true });
   });
   divider.addEventListener('dblclick', () => { set(50); saveSplit(50); });
   divider.addEventListener('keydown', (e) => {
@@ -199,10 +204,19 @@ function wireDivider(panes, divider) {
 
 /* ---------- keys ---------- */
 
+let tabMovesFocus = false;
+
 function onKey(e) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
   if (e.key === 'Escape') { e.preventDefault(); cancel(); return; }
-  if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+  // ctrl-m toggles Tab between indenting and moving focus (so the keyboard can leave)
+  if (e.ctrlKey && e.key.toLowerCase() === 'm') {
+    e.preventDefault();
+    tabMovesFocus = !tabMovesFocus;
+    toast(tabMovesFocus ? 'tab moves focus (ctrl-m to indent)' : 'tab indents (ctrl-m to move focus)');
+    return;
+  }
+  if (e.key === 'Tab' && !tabMovesFocus && !e.metaKey && !e.ctrlKey && !e.altKey) {
     // two spaces, never a tab character - YAML forbids tabs for indentation
     e.preventDefault();
     const ta = e.target;
@@ -227,6 +241,7 @@ async function save(force = false) {
   const { path, crlf, textarea } = session;
   const content = crlf ? textarea.value.replace(/\n/g, '\r\n') : textarea.value;
   let res;
+  session.saving = true;
   try {
     res = await fetch('/api/source', {
       method: 'PUT',
@@ -234,9 +249,11 @@ async function save(force = false) {
       body: JSON.stringify({ path, content, mtime: session.mtime, force })
     });
   } catch {
+    session.saving = false;
     toast('save failed - is projview still running?');
     return;
   }
+  session.saving = false;
   if (res.status === 409) {
     showNotice('this file changed on disk since you opened it', [
       ['overwrite', () => save(true)],
@@ -280,7 +297,7 @@ function hideNotice() { if (session) session.noticeEl.hidden = true; }
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'e' || e.metaKey || e.ctrlKey || e.altKey || session) return;
   if (e.target.closest?.('input, textarea, [contenteditable]') || !state.writable || !state.currentPath) return;
-  if (!$('palette').hidden) return;
+  if (!$('palette').hidden || !$('zoom').hidden) return;
   e.preventDefault();
   startEditing(state.currentPath);
 });
