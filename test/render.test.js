@@ -108,3 +108,13 @@ test('renderSource shows mermaid as plain source, not a diagram div', () => {
   assert.doesNotMatch(html, /class="mermaid"/);
   assert.match(html, /A --&gt; B/);
 });
+
+test('renderSource tags markdown h1-h3 lines with the rendered ids, for the outline', () => {
+  const src = '# Title\n\ntext\n\n## Section One\n\n#### deep\n';
+  const html = renderSource('.md', src);
+  assert.match(html, /id="pv-title" data-toc="h1" data-toc-label="Title"/);
+  assert.match(html, /id="pv-section-one" data-toc="h2" data-toc-label="Section One"/);
+  assert.doesNotMatch(html, /data-toc="h4"/);
+  // the same ids the rendered view uses, so #fragments land in both views
+  assert.match(renderMarkdown(src), /id="pv-section-one"/);
+});
