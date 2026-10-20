@@ -193,3 +193,13 @@ test('PUT /api/source is read-only when bound to a non-loopback host', async () 
     assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), 'x');
   }, { port: 41800, host: '0.0.0.0' });
 });
+
+test('GET /api/file?view=raw returns the source view instead of the render', async () => {
+  await withRoot({ 'doc.md': '# Hi\n' }, async ({ port }) => {
+    const rendered = await jget(`http://127.0.0.1:${port}/api/file?p=doc.md`);
+    const raw = await jget(`http://127.0.0.1:${port}/api/file?p=doc.md&view=raw`);
+    assert.match(rendered.html, /<h1/);
+    assert.match(raw.html, /code-view/);
+    assert.match(raw.html, /# Hi/);
+  }, { port: 41810 });
+});
