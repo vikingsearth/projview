@@ -7,14 +7,17 @@ import chokidar from 'chokidar';
 
 import { buildTree, isHiddenPath, isIgnoredDir, isPreviewable } from './walk.js';
 import { renderFile, renderSource } from './render.js';
-import { buildIndex, updateFile, removeFile, search } from './search.js';
-import { createStore, gitOrOsUser } from './store.js';
+import { buildIndex, updateFile, removeFile, search, indexedSource } from './search.js';
+import { createStore, gitOrOsUser, isPersistent, VERSION_LIMIT } from './store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
 // vendored client libs (mermaid bundle, hljs theme) live in public/vendor/ and
 // are served by the static handler below - no node_modules resolution needed.
+
+// Earlier versions above this size aren't kept (generated bundles, data dumps).
+const VERSION_MAX_BYTES = 5_000_000;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -120,7 +123,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
 
     // --- file tree ---
     if (pathname === '/api/tree') {
-      sendJson(res, { root: path.basename(root) || root, tree: buildTree(root), version: VERSION, writable: allowWrites });
+      sendJson(res, { root: path.basename(root) || root, tree: buildTree(root), version: VERSION, writable: allowWrites, persistent: isPersistent(storeConfig) });
       return;
     }
 
@@ -198,6 +201,21 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       return;
     }
 
+    // --- earlier versions of a file: list (newest first) + fetch one ---
+    // read-only everywhere; restoring goes through PUT /api/source and its guards
+    if (pathname === '/api/versions') {
+      const rel = url.searchParams.get('p') || '';
+      if (!editablePath(rel)) { sendJson(res, { error: 'invalid path' }, 400); return; }
+      sendJson(res, { path: rel, limit: VERSION_LIMIT, versions: await store.listVersions(rel) });
+      return;
+    }
+    if (pathname.startsWith('/api/versions/')) {
+      const v = await store.getVersion(decodeURIComponent(pathname.slice('/api/versions/'.length)));
+      if (!v) { sendJson(res, { error: 'not found' }, 404); return; }
+      sendJson(res, v);
+      return;
+    }
+
     // --- comments: list (GET) + create (POST) ---
     if (pathname === '/api/comments') {
       if (req.method === 'POST') {
@@ -270,8 +288,13 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
   const touch = async (p, event) => {
     if (!isPreviewable(p)) return;
+    const before = indexedSource(rel(p));     // the text this change replaces
     const entry = await updateFile(rel(p));   // refresh in-memory index, get the entry
     if (entry) await store.update(entry);     // mirror the change into the store
+    // keep the replaced text as a version - any change counts (editor, IDE, git, agents)
+    if (entry && before && before.content !== entry.content && before.content.length <= VERSION_MAX_BYTES) {
+      try { await store.addVersion({ file: rel(p), content: before.content, mtime: before.mtime }); } catch { /* versions are best-effort */ }
+    }
     broadcast(event, { path: rel(p) });
   };
   watcher
