@@ -235,3 +235,36 @@ test('a symlink that stays inside the root still works', async () => {
     assert.equal((await fetch(`http://127.0.0.1:${port}/api/file?p=alias.md`)).status, 200);
   }, { port: 41850 });
 });
+
+/* ---------- versions ---------- */
+
+const until = async (fn, ms = 4000) => {
+  const end = Date.now() + ms;
+  for (;;) { const v = await fn(); if (v) return v; if (Date.now() > end) return v; await new Promise((r) => setTimeout(r, 50)); }
+};
+
+test('a change on disk keeps the replaced text as a version; restore goes through /api/source', async () => {
+  await withRoot({ 'doc.md': 'one\n' }, async ({ root, port }) => {
+    const base = `http://127.0.0.1:${port}`;
+    assert.deepEqual((await jget(`${base}/api/versions?p=doc.md`)).versions, []);
+
+    writeFileSync(path.join(root, 'doc.md'), 'two\n');   // an edit made outside projview
+    const list = await until(async () => { const r = await jget(`${base}/api/versions?p=doc.md`); return r.versions.length ? r : null; });
+    assert.ok(list, 'a version appears after the change');
+    assert.equal(list.limit, 5);
+    const v = await jget(`${base}/api/versions/${list.versions[0].id}`);
+    assert.equal(v.content, 'one\n');
+    assert.equal(v.file, 'doc.md');
+
+    // restore = an ordinary save of the old text, which itself versions "two"
+    const { mtime } = await jget(`${base}/api/source?p=doc.md`);
+    assert.equal((await rawPut(port, { path: 'doc.md', content: v.content, mtime })).status, 200);
+    assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), 'one\n');
+    const after = await until(async () => { const r = await jget(`${base}/api/versions?p=doc.md`); return r.versions.length === 2 ? r : null; });
+    assert.ok(after, 'restoring kept the text it replaced');
+    assert.equal((await jget(`${base}/api/versions/${after.versions[0].id}`)).content, 'two\n');
+
+    assert.equal((await fetch(`${base}/api/versions?p=../x.md`)).status, 400);
+    assert.equal((await fetch(`${base}/api/versions/nope`)).status, 404);
+  }, { port: 41830 });
+});
