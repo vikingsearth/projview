@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- we ship our own dark theme: tell the UA + Dark Reader to leave colors alone -->
-  <meta name="color-scheme" content="dark" />
+  <!-- we ship our own light + dark themes: tell the UA + Dark Reader to leave colors alone -->
+  <meta name="color-scheme" content="dark light" />
   <meta name="darkreader-lock" />
   <title>projview</title>
   <link rel="stylesheet" href="/vendor/hljs.css" />
@@ -16,12 +16,12 @@
     <header id="brand">
       <span class="logo" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="26" height="26" fill="none">
-          <rect x="2" y="4.5" width="20" height="15" rx="4" stroke="#b4befe" stroke-width="1.8"/>
-          <line x1="8.5" y1="4.5" x2="8.5" y2="19.5" stroke="#b4befe" stroke-width="1.8"/>
-          <circle cx="13.4" cy="9.4" r="1.25" fill="#cba6f7"/>
-          <circle cx="18" cy="9.4" r="1.25" fill="#cba6f7"/>
-          <circle cx="15.7" cy="14.6" r="1.25" fill="#cba6f7"/>
-          <path d="M13.4 9.4 15.7 14.6 18 9.4" stroke="#cba6f7" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="2" y="4.5" width="20" height="15" rx="4" stroke="currentColor" stroke-width="1.8"/>
+          <line x1="8.5" y1="4.5" x2="8.5" y2="19.5" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="13.4" cy="9.4" r="1.25" fill="currentColor"/>
+          <circle cx="18" cy="9.4" r="1.25" fill="currentColor"/>
+          <circle cx="15.7" cy="14.6" r="1.25" fill="currentColor"/>
+          <path d="M13.4 9.4 15.7 14.6 18 9.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </span>
       <div class="brand-text">
@@ -30,7 +30,7 @@
       </div>
     </header>
     <button id="open-palette" class="open-palette" title="search (⌘K)">
-      <span class="op-ico">🔎</span><span class="op-text">search…</span><kbd>⌘K</kbd>
+      <span class="op-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span class="op-text">search…</span><kbd>⌘K</kbd>
     </button>
     <div id="tree" class="tree"></div>
     <footer id="side-foot"><span id="file-count">0</span> files · ctrl-c to stop</footer>
@@ -40,7 +40,6 @@
     <nav id="breadcrumb" hidden></nav>
     <div id="content" class="markdown-body">
       <div class="empty-state">
-        <div class="empty-emoji">👈</div>
         <p>pick a file from the tree to preview it</p>
       </div>
     </div>

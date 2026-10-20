@@ -79,7 +79,7 @@ function highlightInContent(term) {
 
 function showNotFound(p) {
   contentEl.innerHTML =
-    `<div class="empty-state"><div class="empty-emoji">🤷</div>` +
+    `<div class="empty-state">` +
     `<p>can't find <code>${esc(p)}</code></p>` +
     `<p class="muted">the link may be broken, or the file was renamed / removed</p></div>`;
   buildToc();
