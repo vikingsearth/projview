@@ -5,7 +5,8 @@ and scroll-spy (the active section should track as you scroll).
 
 ## overview
 
-projview exposes a tiny HTTP surface. It never writes your files - the only
+projview exposes a tiny HTTP surface. The only file it writes is one you save
+from the source editor (`PUT /api/source`, loopback only); otherwise the only
 state it records is its own usage events (views / searches) into the store.
 
 ## endpoints
@@ -19,6 +20,18 @@ flag (false when projview is exposed on a non-loopback host).
 
 Renders a single file to HTML on demand. Query param `p` is the relative path.
 Records a `view` usage event.
+
+### GET /api/source · PUT /api/source
+
+`GET ?p=<path>` returns `{ path, content, mtime }` - the raw text the editor
+opens. `PUT` saves `{ path, content, mtime, force? }`:
+
+| response | when |
+| --- | --- |
+| `200 { path, mtime }` | saved |
+| `400` | not a previewable file, outside the root, or under a hidden dir |
+| `403` | bound to a non-loopback host, or the `Host` header isn't a local name |
+| `409 { mtime }` | the file changed on disk since `mtime` - resend with `force: true` to overwrite |
 
 ### GET /api/events
 
