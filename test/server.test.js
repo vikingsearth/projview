@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { startServer, isLoopbackHost } from '../src/server.js';
+import http from 'node:http';
+import { startServer, isLoopbackHost, isLoopbackHostHeader } from '../src/server.js';
 import { createStore } from '../src/store.js';
 
 const DOCS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'docs');
@@ -108,4 +109,87 @@ test('/api/file refuses files under dirs the tree hides (dot-dirs, node_modules)
     await close();
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+/* ---------- source editor endpoint ---------- */
+
+test('isLoopbackHostHeader accepts local names only', () => {
+  for (const h of ['localhost:4321', '127.0.0.1:4321', '[::1]:4321', 'localhost', 'docs.localhost:80']) assert.equal(isLoopbackHostHeader(h), true, h);
+  for (const h of ['evil.example:4321', '192.168.1.10:4321', '', undefined, 'localhost.evil.example']) assert.equal(isLoopbackHostHeader(h), false, String(h));
+});
+
+// raw request so the Host header can be forged (fetch won't let us set it)
+function rawPut(port, body, host = `127.0.0.1:${port}`) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const req = http.request({ port, host: '127.0.0.1', method: 'PUT', path: '/api/source',
+      headers: { host, 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } }, (res) => {
+      let out = '';
+      res.on('data', (c) => { out += c; });
+      res.on('end', () => resolve({ status: res.statusCode, body: out ? JSON.parse(out) : null }));
+    });
+    req.on('error', reject);
+    req.end(data);
+  });
+}
+
+async function withRoot(files, fn, opts = {}) {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'projview-src-'));
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    writeFileSync(path.join(root, rel), body);
+  }
+  const srv = await startServer(root, { port: opts.port, host: opts.host || '127.0.0.1', store: { kind: 'memory' } });
+  try { await fn({ root, port: srv.port }); } finally { await srv.close(); rmSync(root, { recursive: true, force: true }); }
+}
+
+test('GET /api/source returns the raw text and its mtime', async () => {
+  await withRoot({ 'a.yaml': 'k: v\n' }, async ({ port }) => {
+    const r = await jget(`http://127.0.0.1:${port}/api/source?p=a.yaml`);
+    assert.equal(r.content, 'k: v\n');
+    assert.equal(typeof r.mtime, 'number');
+  }, { port: 41760 });
+});
+
+test('PUT /api/source saves when the mtime matches, refuses a stale one, and force overrides', async () => {
+  await withRoot({ 'doc.md': '# old\n' }, async ({ root, port }) => {
+    const { mtime } = await jget(`http://127.0.0.1:${port}/api/source?p=doc.md`);
+    const saved = await rawPut(port, { path: 'doc.md', content: '# new\n', mtime });
+    assert.equal(saved.status, 200);
+    assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), '# new\n');
+
+    const stale = await rawPut(port, { path: 'doc.md', content: '# lost\n', mtime });   // mtime from before the save
+    assert.equal(stale.status, 409);
+    assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), '# new\n');
+
+    const forced = await rawPut(port, { path: 'doc.md', content: '# forced\n', mtime, force: true });
+    assert.equal(forced.status, 200);
+    assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), '# forced\n');
+  }, { port: 41770 });
+});
+
+test('PUT /api/source refuses paths outside what the viewer shows', async () => {
+  await withRoot({ 'ok.md': 'x', 'notes.txt': 'x', '.secret/creds.json': '{}' }, async ({ port }) => {
+    for (const p of ['notes.txt', '.secret/creds.json', '../escape.md', 'missing/../../x.md']) {
+      const r = await rawPut(port, { path: p, content: 'pwned', force: true });
+      assert.equal(r.status, 400, p);
+    }
+    assert.equal((await rawPut(port, { path: 'gone.md', content: 'x', force: true })).status, 404);
+  }, { port: 41780 });
+});
+
+test('PUT /api/source refuses a non-local Host header (DNS rebinding)', async () => {
+  await withRoot({ 'doc.md': 'x' }, async ({ root, port }) => {
+    const r = await rawPut(port, { path: 'doc.md', content: 'pwned', force: true }, `evil.example:${port}`);
+    assert.equal(r.status, 403);
+    assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), 'x');
+  }, { port: 41790 });
+});
+
+test('PUT /api/source is read-only when bound to a non-loopback host', async () => {
+  await withRoot({ 'doc.md': 'x' }, async ({ root, port }) => {
+    const r = await rawPut(port, { path: 'doc.md', content: 'pwned', force: true });
+    assert.equal(r.status, 403);
+    assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), 'x');
+  }, { port: 41800, host: '0.0.0.0' });
 });
