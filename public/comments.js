@@ -54,7 +54,7 @@ drawer.innerHTML =
    <div class="cmt-composer-slot"></div>
    <div class="cmt-list"></div>`;
 
-const chip = cre('button', 'cmt-selchip', '💬 comment');
+const chip = cre('button', 'cmt-selchip', 'comment');
 chip.hidden = true;
 
 document.body.append(fab, drawer, chip);
@@ -203,7 +203,7 @@ contentEl.addEventListener('click', (e) => {
   }
 });
 
-// A hover "💬" at the end of every heading -> comment on that section.
+// A hover "+ comment" at the end of every heading -> comment on that section.
 function addHeadingAffordances() {
   if (!state.writable) return;
   for (const h of contentEl.querySelectorAll('h1, h2, h3')) {
@@ -301,7 +301,7 @@ function renderComposer() {
 function renderList() {
   listEl.replaceChildren();
   if (!current.length) {
-    listEl.append(cre('div', 'cmt-empty', '💭<br>no comments yet' + (state.writable ? '<br><small>select text, hover a heading, or “+ note”</small>' : '')));
+    listEl.append(cre('div', 'cmt-empty', 'no comments yet' + (state.writable ? '<br><small>select text, hover a heading, or “+ note”</small>' : '')));
     return;
   }
   for (const c of current) {
@@ -377,7 +377,7 @@ function updateBadge() {
 
 function anchorLabel(a, quoteOverride) {
   if (!a) return 'file';
-  if (a.type === 'file') return '📄 whole file';
+  if (a.type === 'file') return 'whole file';
   if (a.type === 'heading') {
     const el = document.getElementById(a.id);
     return '§ ' + (quoteOverride || (el ? el.textContent : a.id));
