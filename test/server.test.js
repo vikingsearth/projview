@@ -203,3 +203,14 @@ test('GET /api/file?view=raw returns the source view instead of the render', asy
     assert.match(raw.html, /# Hi/);
   }, { port: 41810 });
 });
+
+test('POST /api/preview renders unsaved text without touching the file', async () => {
+  await withRoot({ 'doc.md': '# on disk\n' }, async ({ root, port }) => {
+    const post = (body) => fetch(`http://127.0.0.1:${port}/api/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await (await post({ path: 'doc.md', content: '# Draft\n\n- one\n' })).json();
+    assert.match(r.html, /<h1[^>]*>Draft<\/h1>/);
+    assert.match(r.html, /<li>one<\/li>/);
+    assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), '# on disk\n');
+    assert.equal((await post({ path: 'notes.txt', content: 'x' })).status, 400);
+  }, { port: 41820 });
+});
