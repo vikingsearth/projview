@@ -291,26 +291,41 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const watching = new Promise((resolve) => watcher.once('ready', resolve));
   const indexInfo = await buildIndex(root, store);   // load-or-build the search index
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
+  // keep text a change replaced (or a delete removed) as a version - any source
+  // counts: projview's editor, an IDE, git, agents
+  const keepVersion = async (file, before) => {
+    if (!before || Buffer.byteLength(before.content) > VERSION_MAX_BYTES) return;
+    try { await store.addVersion({ file, content: before.content, mtime: before.mtime }); } catch { /* versions are best-effort */ }
+  };
   const touch = async (p, event) => {
-    if (!isPreviewable(p)) return;
+    // same rule as the API: previewable, not hidden, real path inside the root
+    // (a symlink to an outside file is neither indexed nor versioned)
+    if (!(await editablePath(rel(p)))) return;
     const before = indexedSource(rel(p));     // the text this change replaces
     const entry = await updateFile(rel(p));   // refresh in-memory index, get the entry
     if (entry) await store.update(entry);     // mirror the change into the store
-    // keep the replaced text as a version - any change counts (editor, IDE, git, agents)
-    if (entry && before && before.content !== entry.content && before.content.length <= VERSION_MAX_BYTES) {
-      try { await store.addVersion({ file: rel(p), content: before.content, mtime: before.mtime }); } catch { /* versions are best-effort */ }
-    }
+    if (entry && before && before.content !== entry.content) await keepVersion(rel(p), before);
     broadcast(event, { path: rel(p) });
   };
+  const unlink = async (p) => {
+    if (!isPreviewable(p)) return;
+    await keepVersion(rel(p), indexedSource(rel(p)));   // a delete is a change too
+    removeFile(rel(p));
+    await store.remove(rel(p));
+    broadcast('tree');
+  };
+  // one file's events run in order: concurrent handlers would read the same
+  // "before" text, losing the in-between version of two quick changes
+  const queues = new Map();
+  const serial = (fn) => (p, ...args) => {
+    const next = (queues.get(p) || Promise.resolve()).then(() => fn(p, ...args)).catch(() => {});
+    queues.set(p, next);
+    next.then(() => { if (queues.get(p) === next) queues.delete(p); });
+  };
   watcher
-    .on('change', (p) => touch(p, 'change'))
-    .on('add', (p) => touch(p, 'tree'))
-    .on('unlink', async (p) => {
-      if (!isPreviewable(p)) return;
-      removeFile(rel(p));
-      await store.remove(rel(p));
-      broadcast('tree');
-    })
+    .on('change', serial((p) => touch(p, 'change')))
+    .on('add', serial((p) => touch(p, 'tree')))
+    .on('unlink', serial(unlink))
     .on('addDir', () => broadcast('tree'))
     .on('unlinkDir', () => broadcast('tree'));
   const listenPort = await listenWithRetry(server, port, host);
