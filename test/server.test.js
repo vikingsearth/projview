@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { startServer, isLoopbackHost, isLoopbackHostHeader } from '../src/server.js';
@@ -213,4 +213,25 @@ test('POST /api/preview renders unsaved text without touching the file', async (
     assert.equal(readFileSync(path.join(root, 'doc.md'), 'utf8'), '# on disk\n');
     assert.equal((await post({ path: 'notes.txt', content: 'x' })).status, 400);
   }, { port: 41820 });
+});
+
+test('a symlink inside the root that points outside it can be neither read nor saved', async () => {
+  const outside = mkdtempSync(path.join(os.tmpdir(), 'projview-outside-'));
+  writeFileSync(path.join(outside, 'secret.md'), 'keep out');
+  await withRoot({ 'ok.md': 'x' }, async ({ root, port }) => {
+    symlinkSync(path.join(outside, 'secret.md'), path.join(root, 'notes.md'));
+    const base = `http://127.0.0.1:${port}`;
+    assert.equal((await fetch(`${base}/api/file?p=notes.md`)).status, 400);
+    assert.equal((await fetch(`${base}/api/source?p=notes.md`)).status, 400);
+    assert.equal((await rawPut(port, { path: 'notes.md', content: 'pwned', force: true })).status, 400);
+    assert.equal(readFileSync(path.join(outside, 'secret.md'), 'utf8'), 'keep out');
+  }, { port: 41840 });
+  rmSync(outside, { recursive: true, force: true });
+});
+
+test('a symlink that stays inside the root still works', async () => {
+  await withRoot({ 'real.md': '# real' }, async ({ root, port }) => {
+    symlinkSync(path.join(root, 'real.md'), path.join(root, 'alias.md'));
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/file?p=alias.md`)).status, 200);
+  }, { port: 41850 });
 });
