@@ -15,7 +15,8 @@ function setActive(current) {
 }
 
 export function buildToc() {
-  const headings = [...contentEl.querySelectorAll('h1, h2, h3')].filter((h) => h.id);
+  // rendered headings, or raw-view source lines tagged as headings (data-toc)
+  const headings = [...contentEl.querySelectorAll('h1, h2, h3, [data-toc]')].filter((h) => h.id);
   tocEntries = [];
   if (!headings.length) {
     document.body.classList.add('toc-empty');
@@ -26,8 +27,8 @@ export function buildToc() {
   const frag = document.createDocumentFragment();
   for (const h of headings) {
     const link = document.createElement('button');
-    link.className = `toc-item lvl-${h.tagName.toLowerCase()}`;
-    link.textContent = h.textContent;
+    link.className = `toc-item lvl-${h.dataset.toc || h.tagName.toLowerCase()}`;
+    link.textContent = h.dataset.tocLabel || h.textContent;
     const entry = { id: h.id, el: h, link };
     link.addEventListener('click', () => {
       scrollToFragment(h.id);

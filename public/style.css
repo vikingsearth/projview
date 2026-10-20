@@ -319,6 +319,7 @@ body {
   border-right: 1px solid var(--surface0);
   user-select: none;
 }
+.code-view .cl[data-toc] { scroll-margin-top: 56px; }   /* clear the sticky breadcrumb on #anchor jumps */
 .code-view .cl:hover { background: color-mix(in srgb, var(--mauve) 6%, transparent); }
 .code-view .cl:hover::before { color: var(--overlay); }
 .code-view .lc {
