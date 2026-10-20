@@ -12,6 +12,7 @@ import { runMermaid } from './mermaid.js';
 import { onThemeChange } from './theme.js';
 import './search.js';
 import './comments.js';
+import './editor.js';
 
 // browser back / forward
 window.addEventListener('hashchange', () => {
