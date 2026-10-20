@@ -24,9 +24,9 @@ export async function openFile(p, fragment, highlight) {
   revealInTree(p);
   renderBreadcrumb(p);
 
+  const raw = state.view === 'raw' && hasRawView(p);
   let res;
   try {
-    const raw = state.view === 'raw' && hasRawView(p);
     res = await fetch(`/api/file?p=${encodeURIComponent(p)}${raw ? '&view=raw' : ''}`);
   } catch {
     res = null;
@@ -39,7 +39,8 @@ export async function openFile(p, fragment, highlight) {
   contentEl.innerHTML = html;
   await runMermaid();
   buildToc();
-  onFileRendered(p);   // load + anchor + paint comments for this file
+  // comments quote the rendered text, so they live in the rendered view only
+  onFileRendered(raw ? null : p);
   onFileShown(p);      // rendered / raw / edit switcher
   if (fragment) scrollToFragment(fragment);
   else if (highlight) highlightInContent(highlight);
