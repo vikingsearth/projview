@@ -266,6 +266,7 @@ test('a change on disk keeps the replaced text as a version; restore goes throug
     assert.equal((await jget(`${base}/api/versions/${after.versions[0].id}`)).content, 'two\n');
 
     assert.equal((await fetch(`${base}/api/versions?p=../x.md`)).status, 400);
+    assert.equal((await fetch(`${base}/api/versions?p=notes.txt`)).status, 400);
     assert.equal((await fetch(`${base}/api/versions/nope`)).status, 404);
   }, { port: 41830 });
 });
