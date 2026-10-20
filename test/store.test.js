@@ -4,7 +4,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveStoreConfig, createStore, isPersistent } from '../src/store.js';
+import { resolveStoreConfig, createStore, isPersistent, VERSION_LIMIT } from '../src/store.js';
 import { buildIndex, search } from '../src/search.js';
 
 const DOCS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'docs');
@@ -146,4 +146,49 @@ test('memory store keeps comments only for the session', async () => {
   assert.equal((await s.listComments('a.md')).length, 1);
   const fresh = createStore({ kind: 'memory' }, DOCS);   // shares nothing
   assert.equal((await fresh.listComments('a.md')).length, 0);
+});
+
+/* ---------- file versions ---------- */
+
+// the same contract for every local backend (postgres shares the sqlite SQL shape)
+const versionBackends = [
+  ['memory', () => createStore({ kind: 'memory' }, DOCS), () => {}],
+  ['superlite', () => createStore({ kind: 'superlite', persist: false }, '/tmp/projview-test-versions-superlite'), () => {}],
+  ['sqlite', () => createStore({ kind: 'custom', url: `sqlite://${tmpFile('versions')}` }, DOCS), () => fs.rmSync(tmpFile('versions'), { force: true })]
+];
+
+for (const [name, make, cleanup] of versionBackends) {
+  test(`${name} store keeps the newest ${VERSION_LIMIT} versions per file, newest first`, async () => {
+    const s = make();
+    try {
+      for (let i = 1; i <= VERSION_LIMIT + 2; i++) await s.addVersion({ file: 'a.md', content: `v${i}`, mtime: i, replacedAt: 1000 + i });
+      await s.addVersion({ file: 'b.md', content: 'other', mtime: 1, replacedAt: 5000 });
+
+      const list = await s.listVersions('a.md');
+      assert.equal(list.length, VERSION_LIMIT);
+      assert.deepEqual(list.map((v) => v.mtime), [7, 6, 5, 4, 3]);   // v1, v2 pruned
+      assert.equal(list[0].size, 2);
+      assert.equal('content' in list[0], false);                      // listing stays light
+
+      const full = await s.getVersion(list[0].id);
+      assert.equal(full.content, 'v7');
+      assert.equal((await s.listVersions('b.md')).length, 1);         // pruning is per file
+      assert.equal(await s.getVersion('nope'), null);
+    } finally {
+      await s.close();
+      cleanup();
+    }
+  });
+}
+
+test('superlite persists versions to its json file', async () => {
+  const root = '/tmp/projview-test-versions-persist';
+  const a = createStore({ kind: 'superlite', persist: true }, root);
+  await a.addVersion({ file: 'x.md', content: 'old', mtime: 1 });
+  await a.close();
+  const b = createStore({ kind: 'superlite', persist: true }, root);
+  const [v] = await b.listVersions('x.md');
+  assert.equal((await b.getVersion(v.id)).content, 'old');
+  await b.close();
+  fs.rmSync(b.file || '', { force: true });
 });
