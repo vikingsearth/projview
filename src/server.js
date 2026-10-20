@@ -84,9 +84,15 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
 
   // A client path that may be read (or, behind the write guards, saved): inside
   // root, a previewable type, and not under a dir the tree hides. Else null.
-  const editablePath = (rel) => {
+  // Checked on the real path too, so a symlink named notes.md can't reach a file
+  // outside the root (e.g. ~/.zshrc) - for reads, and above all for saves.
+  const realRoot = fs.realpathSync(root);
+  const editablePath = async (rel) => {
     const abs = resolveInRoot(root, rel || '');
     if (!abs || !isPreviewable(abs) || isHiddenPath(path.relative(root, abs))) return null;
+    let real;
+    try { real = await fsp.realpath(abs); } catch { return abs; }   // missing: the caller answers 404
+    if (!resolveInRoot(realRoot, path.relative(realRoot, real))) return null;
     return abs;
   };
 
@@ -130,7 +136,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     // --- rendered file contents ---
     if (pathname === '/api/file') {
       const rel = url.searchParams.get('p') || '';
-      const abs = editablePath(rel);
+      const abs = await editablePath(rel);
       if (!abs) {
         sendJson(res, { error: 'invalid path' }, 400);
         return;
@@ -166,7 +172,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         if (!isLoopbackHostHeader(req.headers.host)) { sendJson(res, { error: 'writes need a localhost Host header' }, 403); return; }
         const body = await readBody(req, 10_000_000);
         if (!body || typeof body.path !== 'string' || typeof body.content !== 'string') { sendJson(res, { error: 'path and content are required' }, 400); return; }
-        const abs = editablePath(body.path);
+        const abs = await editablePath(body.path);
         if (!abs) { sendJson(res, { error: 'invalid path' }, 400); return; }
         let stat;
         try { stat = await fsp.stat(abs); } catch { sendJson(res, { error: 'not found' }, 404); return; }
@@ -181,7 +187,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         return;
       }
       const rel = url.searchParams.get('p') || '';
-      const abs = editablePath(rel);
+      const abs = await editablePath(rel);
       if (!abs) { sendJson(res, { error: 'invalid path' }, 400); return; }
       try {
         const [content, stat] = await Promise.all([fsp.readFile(abs, 'utf8'), fsp.stat(abs)]);
