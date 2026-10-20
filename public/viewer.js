@@ -8,7 +8,7 @@ import { runMermaid } from './mermaid.js';
 import { buildToc } from './toc.js';
 import { toast } from './toast.js';
 import { onFileRendered } from './comments.js';
-import { isEditing, confirmLeave, onFileShown } from './editor.js';
+import { isEditing, confirmLeave, onFileShown, hasRawView } from './editor.js';
 
 const contentEl = $('content');
 const viewerEl = $('viewer');
@@ -26,7 +26,8 @@ export async function openFile(p, fragment, highlight) {
 
   let res;
   try {
-    res = await fetch(`/api/file?p=${encodeURIComponent(p)}`);
+    const raw = state.view === 'raw' && hasRawView(p);
+    res = await fetch(`/api/file?p=${encodeURIComponent(p)}${raw ? '&view=raw' : ''}`);
   } catch {
     res = null;
   }
@@ -39,7 +40,7 @@ export async function openFile(p, fragment, highlight) {
   await runMermaid();
   buildToc();
   onFileRendered(p);   // load + anchor + paint comments for this file
-  onFileShown(p);      // offer "edit" when this client may write
+  onFileShown(p);      // rendered / raw / edit switcher
   if (fragment) scrollToFragment(fragment);
   else if (highlight) highlightInContent(highlight);
   else viewerEl.scrollTop = 0;
