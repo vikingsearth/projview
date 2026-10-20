@@ -150,7 +150,9 @@ function fileFor(root, persist, ext) {
 
 // Holds comments + events in memory; calls flush() after each mutation so a
 // disk-backed wrapper (superlite) can persist. memory passes a no-op flush.
-function inMemoryDocs(flush = async () => {}) {
+// Versions get their own flush: they're large, and shouldn't be rewritten on
+// every page view or search event.
+function inMemoryDocs(flush = async () => {}, flushVersions = flush) {
   const comments = new Map();   // id -> comment
   const events = [];            // append-only (stable ref - never reassigned)
   const versions = [];          // oldest first (stable ref - pruned in place)
@@ -163,7 +165,7 @@ function inMemoryDocs(flush = async () => {}) {
       versions.push(version);
       const mine = versions.filter((x) => x.file === version.file);
       for (const old of mine.slice(0, Math.max(0, mine.length - VERSION_LIMIT))) versions.splice(versions.indexOf(old), 1);
-      await flush();
+      await flushVersions();
       return versionMeta(version);
     },
     async listVersions(file) {
@@ -228,16 +230,17 @@ function memoryStore() {
 
 function superliteStore(root, persist) {
   const file = fileFor(root, persist, 'json');
+  const versionsFile = file.replace(/\.json$/, '.versions.json');   // big, so written only when versions change
   const entries = new Map();   // path -> entry
   let loaded = false;
   const flush = () => fsp.writeFile(file, JSON.stringify({
     builtAt: Date.now(),
     entries: [...entries.values()],
     comments: [...docs.comments.values()],
-    events: docs.events,
-    versions: docs.versions
+    events: docs.events
   }));
-  const docs = inMemoryDocs(() => (loaded ? flush() : Promise.resolve()));
+  const flushVersions = () => fsp.writeFile(versionsFile, JSON.stringify(docs.versions));
+  const docs = inMemoryDocs(() => (loaded ? flush() : Promise.resolve()), () => (loaded ? flushVersions() : Promise.resolve()));
   const ensure = async () => {
     if (loaded) return;
     try {
@@ -245,13 +248,16 @@ function superliteStore(root, persist) {
       for (const e of d.entries || []) entries.set(e.path, e);
       for (const c of d.comments || []) docs.comments.set(c.id, c);
       for (const ev of d.events || []) docs.events.push(ev);
-      for (const v of d.versions || []) docs.versions.push(v);
     } catch { /* fresh */ }
+    try {
+      for (const v of JSON.parse(await fsp.readFile(versionsFile, 'utf8'))) docs.versions.push(v);
+    } catch { /* no history yet */ }
     loaded = true;
   };
   return {
     kind: 'superlite',
     file,
+    versionsFile,
     async load() { await ensure(); return entries.size ? { entries: [...entries.values()] } : null; },
     async save(es) { await ensure(); entries.clear(); for (const e of es) entries.set(e.path, e); await flush(); },
     async update(entry) { await ensure(); entries.set(entry.path, entry); await flush(); },
@@ -266,7 +272,9 @@ function superliteStore(root, persist) {
     async listVersions(f) { await ensure(); return docs.listVersions(f); },
     async getVersion(id) { await ensure(); return docs.getVersion(id); },
     async close({ keep } = {}) {
-      if (!persist && !keep) { try { await fsp.unlink(file); } catch { /* gone */ } }
+      if (!persist && !keep) {
+        for (const f of [file, versionsFile]) { try { await fsp.unlink(f); } catch { /* gone */ } }
+      }
     },
     describe() { return `superlite/json (${persist ? 'persisted' : 'ephemeral'}) ${file}`; }
   };
