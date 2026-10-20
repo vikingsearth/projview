@@ -33,6 +33,24 @@ opens. `PUT` saves `{ path, content, mtime, force? }`:
 | `403` | bound to a non-loopback host, or the `Host` header isn't a local name |
 | `409 { mtime }` | the file changed on disk since `mtime` - resend with `force: true` to overwrite |
 
+### POST /api/preview
+
+Renders `{ path, content }` - unsaved editor text - exactly as `/api/file` would
+render that file, and returns `{ html }`. Never writes; `400` for a path that
+isn't a previewable type.
+
+### GET /api/versions · GET /api/versions/:id
+
+`GET ?p=<path>` lists a file's earlier versions, newest first:
+`{ path, limit, versions: [{ id, file, mtime, replacedAt, size }] }`.
+`GET /api/versions/:id` returns one with its `content`.
+
+A version is the text a file had just before it changed - whether the change
+came from projview's editor or anywhere else (an IDE, `git pull`, an agent). The
+newest 5 are kept per file, in the same store as comments: gone when projview
+stops by default, kept across runs with `--persist` or a `--store-url`. Files over
+5 MB aren't versioned. Restoring is an ordinary `PUT /api/source` of the old text.
+
 ### GET /api/events
 
 Server-sent events stream: `change` / `tree` for live reload, `comments` when a
