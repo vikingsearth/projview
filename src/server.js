@@ -205,7 +205,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     // read-only everywhere; restoring goes through PUT /api/source and its guards
     if (pathname === '/api/versions') {
       const rel = url.searchParams.get('p') || '';
-      if (!editablePath(rel)) { sendJson(res, { error: 'invalid path' }, 400); return; }
+      if (!(await editablePath(rel))) { sendJson(res, { error: 'invalid path' }, 400); return; }
       sendJson(res, { path: rel, limit: VERSION_LIMIT, versions: await store.listVersions(rel) });
       return;
     }
