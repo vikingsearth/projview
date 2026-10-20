@@ -227,6 +227,13 @@ export function renderYaml(content) {
   return renderCodeView(content, 'yaml');
 }
 
+// The "raw" view of a markdown / mermaid file: its source in the code view
+// (highlighted, numbered, with indent guides), exactly as written.
+const SOURCE_LANG = { '.md': 'markdown', '.mmd': 'plaintext' };
+export function renderSource(ext, content) {
+  return renderCodeView(content, SOURCE_LANG[ext] || 'plaintext');
+}
+
 export function renderFile(ext, content) {
   if (ext === '.mmd') return renderMermaid(content);
   if (ext === '.json') return renderJson(content);
