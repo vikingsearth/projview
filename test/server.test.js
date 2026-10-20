@@ -270,3 +270,40 @@ test('a change on disk keeps the replaced text as a version; restore goes throug
     assert.equal((await fetch(`${base}/api/versions/nope`)).status, 404);
   }, { port: 41830 });
 });
+
+test('JSON versions keep the raw text, not the re-indented view', async () => {
+  await withRoot({ 'cfg.json': '{"a":1,"n":12345678901234567890}' }, async ({ root, port, watching }) => {
+    const base = `http://127.0.0.1:${port}`;
+    await watching;
+    writeFileSync(path.join(root, 'cfg.json'), '{"a":2}');
+    const list = await until(async () => { const r = await jget(`${base}/api/versions?p=cfg.json`); return r.versions.length ? r : null; });
+    assert.ok(list);
+    assert.equal((await jget(`${base}/api/versions/${list.versions[0].id}`)).content, '{"a":1,"n":12345678901234567890}');
+  }, { port: 41860 });
+});
+
+test('deleting a file keeps its last text as a version', async () => {
+  await withRoot({ 'gone.md': 'last words\n' }, async ({ root, port, watching }) => {
+    const base = `http://127.0.0.1:${port}`;
+    await watching;
+    rmSync(path.join(root, 'gone.md'));
+    const list = await until(async () => { const r = await jget(`${base}/api/versions?p=gone.md`); return r.versions.length ? r : null; });
+    assert.ok(list, 'the deleted text is in history');
+    assert.equal((await jget(`${base}/api/versions/${list.versions[0].id}`)).content, 'last words\n');
+  }, { port: 41870 });
+});
+
+test('back-to-back changes keep every in-between version, once each', async () => {
+  await withRoot({ 'doc.md': 'v1\n' }, async ({ root, port, watching }) => {
+    const base = `http://127.0.0.1:${port}`;
+    await watching;
+    for (const v of ['v2\n', 'v3\n', 'v4\n']) {
+      writeFileSync(path.join(root, 'doc.md'), v);
+      await new Promise((r) => setTimeout(r, 250));   // distinct change events, still close together
+    }
+    const list = await until(async () => { const r = await jget(`${base}/api/versions?p=doc.md`); return r.versions.length >= 3 ? r : null; });
+    assert.ok(list, 'three versions recorded');
+    const texts = await Promise.all(list.versions.map(async (v) => (await jget(`${base}/api/versions/${v.id}`)).content));
+    assert.deepEqual(texts, ['v3\n', 'v2\n', 'v1\n']);
+  }, { port: 41880 });
+});
