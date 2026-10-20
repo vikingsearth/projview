@@ -1,9 +1,9 @@
 # projview
 
 a fast, zero-config local viewer for **markdown** + **mermaid** files. run it in
-any directory, get a soft-dark cartoonish localhost view of every `.md` / `.mmd`
-(plus `.json` / `.yaml`) under it - rendered diagrams, search, live reload - close it and nothing's left
-behind.
+any directory, get a quiet localhost view - light or dark, following your OS - of
+every `.md` / `.mmd` (plus `.json` / `.yaml`) under it: rendered diagrams, search,
+live reload. close it and nothing's left behind.
 
 that's the product. point it at a docs folder, read comfortably, ctrl-c, gone.
 
