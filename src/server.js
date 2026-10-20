@@ -277,14 +277,19 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
 
   // --- file watcher -> live reload ---
   const store = createStore(storeConfig, root);
-  const indexInfo = await buildIndex(root, store);   // load-or-build the search index
 
   // file watcher -> keep the in-memory index, the persisted store, AND the
-  // browser in sync as files change during a session
+  // browser in sync as files change during a session. Started before the index
+  // build so its initial scan (the slow part on big trees) overlaps it.
   const watcher = chokidar.watch(root, {
     ignoreInitial: true,
     ignored: (p) => p.split(path.sep).some(isIgnoredDir)
   });
+  // resolves once the scan is done; changes before then aren't seen. Not awaited
+  // here so startup stays fast - tests (and anything that must not miss an
+  // early change) wait on it via the returned `watching`.
+  const watching = new Promise((resolve) => watcher.once('ready', resolve));
+  const indexInfo = await buildIndex(root, store);   // load-or-build the search index
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
   const touch = async (p, event) => {
     if (!isPreviewable(p)) return;
@@ -320,6 +325,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     server,
     port: listenPort,
     close,
+    watching,
     writable: allowWrites,
     storeInfo: { describe: store.describe(), warm: indexInfo.warm, reindexed: indexInfo.reindexed, total: indexInfo.total }
   };
