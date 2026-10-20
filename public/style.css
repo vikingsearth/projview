@@ -716,14 +716,21 @@ h1:hover > .cmt-head-add, h2:hover > .cmt-head-add, h3:hover > .cmt-head-add { o
 
 /* ---------------- source editor ---------------- */
 
-.crumb-action {
+.view-switch {
   margin-left: auto;
-  background: none; border: 1px solid var(--surface1); border-radius: var(--radius-sm);
-  color: var(--subtext); font: inherit; font-size: 12px; padding: 2px 10px; cursor: pointer;
+  display: inline-flex;
+  border: 1px solid var(--surface1); border-radius: var(--radius-sm);
+  overflow: hidden;
 }
-.crumb-action:hover { color: var(--text); border-color: var(--surface2); }
+.view-switch button {
+  background: none; border: none; border-left: 1px solid var(--surface1);
+  color: var(--overlay); font: inherit; font-size: 12px; padding: 2px 10px; cursor: pointer;
+}
+.view-switch button:first-child { border-left: none; }
+.view-switch button:hover { color: var(--text); }
+.view-switch button.on { background: var(--surface0); color: var(--text); }
 
-body.editing #toc, body.editing #toc-reopen, body.editing .cmt-fab, body.editing .cmt-drawer, body.editing .crumb-action { display: none; }
+body.editing #toc, body.editing #toc-reopen, body.editing .cmt-fab, body.editing .cmt-drawer { display: none; }
 body.editing #content { max-width: 1100px; padding-bottom: 30px; }
 
 .editor { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 120px); }
