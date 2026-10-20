@@ -8,7 +8,7 @@ import { connectEvents } from './live.js';
 // side-effect modules: each attaches its own listeners on import
 import './links.js';
 import './toc.js';
-import './mermaid.js';
+import { runMermaid } from './mermaid.js';
 import { onThemeChange } from './theme.js';
 import './search.js';
 import './comments.js';
@@ -19,8 +19,9 @@ window.addEventListener('hashchange', () => {
   if (p && p !== state.currentPath) openFile(p);   // guard prevents self-trigger loop
 });
 
-// light/dark flip: CSS follows on its own; diagrams are baked SVG, so re-render
-onThemeChange(() => { if (state.currentPath) openFile(state.currentPath); });
+// light/dark flip: CSS follows on its own; diagrams are baked SVG, so redraw them
+// in place (no re-fetch, no scroll jump, an open editor is left alone)
+onThemeChange(() => runMermaid({ rerender: true }));
 
 async function boot() {
   await loadTree();
