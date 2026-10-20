@@ -8,11 +8,17 @@ import { runMermaid } from './mermaid.js';
 import { buildToc } from './toc.js';
 import { toast } from './toast.js';
 import { onFileRendered } from './comments.js';
+import { isEditing, confirmLeave, onFileShown } from './editor.js';
 
 const contentEl = $('content');
 const viewerEl = $('viewer');
 
 export async function openFile(p, fragment, highlight) {
+  // leaving an editor with unsaved changes needs a yes; on no, put the URL back
+  if (isEditing() && !confirmLeave()) {
+    location.hash = encodeURIComponent(state.currentPath);
+    return;
+  }
   state.currentPath = p;
   location.hash = encodeURIComponent(p);
   revealInTree(p);
@@ -33,6 +39,7 @@ export async function openFile(p, fragment, highlight) {
   await runMermaid();
   buildToc();
   onFileRendered(p);   // load + anchor + paint comments for this file
+  onFileShown(p);      // offer "edit" when this client may write
   if (fragment) scrollToFragment(fragment);
   else if (highlight) highlightInContent(highlight);
   else viewerEl.scrollTop = 0;

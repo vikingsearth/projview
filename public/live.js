@@ -5,6 +5,7 @@ import { state } from './store.js';
 import { loadTree } from './tree.js';
 import { openFile } from './viewer.js';
 import { refreshComments } from './comments.js';
+import { isEditing, onDiskChange } from './editor.js';
 
 const versionEl = $('version');
 
@@ -12,7 +13,10 @@ export function connectEvents() {
   const es = new EventSource('/api/events');
   es.addEventListener('change', (e) => {
     const { path } = JSON.parse(e.data);
-    if (path === state.currentPath) { pulse(); openFile(path); }
+    if (path !== state.currentPath) return;
+    pulse();
+    if (isEditing(path)) onDiskChange();   // never re-render over an open editor
+    else openFile(path);
   });
   es.addEventListener('tree', async () => { pulse(); await loadTree(); });
   es.addEventListener('comments', (e) => {
