@@ -8,6 +8,7 @@ import { openFile } from './viewer.js';
 import { toast } from './toast.js';
 import { runMermaid } from './mermaid.js';
 import { fileKind } from './icons.js';
+import { showHistory } from './history.js';
 
 const contentEl = $('content');
 const breadcrumbEl = $('breadcrumb');
@@ -30,12 +31,11 @@ export function confirmLeave() {
 export const hasRawView = (p) => ['md', 'mmd'].includes(fileKind(p));
 
 // Called after every render: the view switcher in the breadcrumb bar.
-// md / mmd: rendered | raw | edit. json / yaml (already shown as source): edit.
-// "edit" only where this client may write.
+// md / mmd: rendered | raw | edit | history. json / yaml (already shown as
+// source): edit | history. "edit" only where this client may write.
 export function onFileShown(p) {
   if (!p) return;
-  const views = [...(hasRawView(p) ? ['rendered', 'raw'] : []), ...(state.writable ? ['edit'] : [])];
-  if (!views.length) return;
+  const views = [...(hasRawView(p) ? ['rendered', 'raw'] : []), ...(state.writable ? ['edit'] : []), 'history'];
   const wrap = document.createElement('div');
   wrap.className = 'view-switch';
   for (const v of views) {
@@ -57,6 +57,7 @@ function markView(v) {
 function switchView(p, v) {
   if (v === 'edit') { if (!session) startEditing(p); return; }
   if (session && !confirmLeave()) return;
+  if (v === 'history') { markView('history'); showHistory(p); return; }   // never sticky
   state.view = v;
   openFile(p);
 }
