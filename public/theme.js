@@ -4,7 +4,7 @@
 
 import { $ } from './dom.js';
 
-const KEY = 'pv-theme';
+const KEY = 'pv-theme';   // also read by the pre-paint script in index.html - keep in step
 const PREFS = ['system', 'light', 'dark'];
 const osLight = matchMedia('(prefers-color-scheme: light)');
 const listeners = new Set();
@@ -36,6 +36,7 @@ function apply() {
   document.documentElement.dataset.theme = theme;
   btn.innerHTML = ICONS[pref];
   btn.title = `theme: ${pref} (click to change)`;
+  btn.setAttribute('aria-label', `theme: ${pref}`);
   if (theme !== before) for (const fn of listeners) fn(theme);
 }
 
@@ -45,5 +46,7 @@ btn.addEventListener('click', () => {
   apply();
 });
 osLight.addEventListener('change', () => { if (pref === 'system') apply(); });
+// another projview tab changed the theme: follow it
+window.addEventListener('storage', (e) => { if (e.key === KEY) { pref = readPref(); apply(); } });
 
 apply();
