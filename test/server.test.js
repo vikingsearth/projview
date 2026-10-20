@@ -140,7 +140,7 @@ async function withRoot(files, fn, opts = {}) {
     writeFileSync(path.join(root, rel), body);
   }
   const srv = await startServer(root, { port: opts.port, host: opts.host || '127.0.0.1', store: { kind: 'memory' } });
-  try { await fn({ root, port: srv.port }); } finally { await srv.close(); rmSync(root, { recursive: true, force: true }); }
+  try { await fn({ root, port: srv.port, watching: srv.watching }); } finally { await srv.close(); rmSync(root, { recursive: true, force: true }); }
 }
 
 test('GET /api/source returns the raw text and its mtime', async () => {
@@ -244,8 +244,9 @@ const until = async (fn, ms = 4000) => {
 };
 
 test('a change on disk keeps the replaced text as a version; restore goes through /api/source', async () => {
-  await withRoot({ 'doc.md': 'one\n' }, async ({ root, port }) => {
+  await withRoot({ 'doc.md': 'one\n' }, async ({ root, port, watching }) => {
     const base = `http://127.0.0.1:${port}`;
+    await watching;   // an edit before the watcher's initial scan finishes isn't seen
     assert.deepEqual((await jget(`${base}/api/versions?p=doc.md`)).versions, []);
 
     writeFileSync(path.join(root, 'doc.md'), 'two\n');   // an edit made outside projview
