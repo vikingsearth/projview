@@ -53,6 +53,13 @@ export function isLoopbackHost(host) {
   return ['127.0.0.1', '::1', 'localhost', ''].includes(host);
 }
 
+// The Host header of a request that may write. A DNS-rebinding page reaches a
+// loopback port under its own domain, so the bind address alone isn't enough.
+export function isLoopbackHostHeader(hostHeader) {
+  const name = (hostHeader || '').replace(/:\d+$/, '').replace(/^\[(.*)\]$/, '$1').toLowerCase();
+  return ['127.0.0.1', '::1', 'localhost'].includes(name) || name.endsWith('.localhost');
+}
+
 // Read + JSON-parse a request body, capped to guard against abuse.
 // Resolves null on parse error or oversize (handler treats that as a 400).
 function readBody(req, limit = 1_000_000) {
@@ -74,6 +81,14 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const allowWrites = isLoopbackHost(host);   // comments are read-only on an exposed host
   const denyWrite = (res) => sendJson(res, { error: 'read-only: projview is exposed on a non-loopback host' }, 403);
   const localAuthor = gitOrOsUser();          // default author for UI-created comments
+
+  // A client path that may be read (or, behind the write guards, saved): inside
+  // root, a previewable type, and not under a dir the tree hides. Else null.
+  const editablePath = (rel) => {
+    const abs = resolveInRoot(root, rel || '');
+    if (!abs || !isPreviewable(abs) || isHiddenPath(path.relative(root, abs))) return null;
+    return abs;
+  };
 
   function broadcast(event, payload) {
     const frame = `event: ${event}\ndata: ${JSON.stringify(payload || {})}\n\n`;
@@ -115,8 +130,8 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     // --- rendered file contents ---
     if (pathname === '/api/file') {
       const rel = url.searchParams.get('p') || '';
-      const abs = resolveInRoot(root, rel);
-      if (!abs || !isPreviewable(abs) || isHiddenPath(path.relative(root, abs))) {
+      const abs = editablePath(rel);
+      if (!abs) {
         sendJson(res, { error: 'invalid path' }, 400);
         return;
       }
@@ -124,6 +139,40 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         const content = await fsp.readFile(abs, 'utf8');
         try { await store.recordEvent({ type: 'view', file: rel }); } catch { /* usage is best-effort */ }
         sendJson(res, { path: rel, ext: path.extname(abs).toLowerCase(), html: renderFile(path.extname(abs).toLowerCase(), content) });
+      } catch {
+        sendJson(res, { error: 'not found' }, 404);
+      }
+      return;
+    }
+
+    // --- raw source: read (GET) + save (PUT) for the in-browser editor ---
+    if (pathname === '/api/source') {
+      if (req.method === 'PUT') {
+        if (!allowWrites) return denyWrite(res);
+        // a DNS-rebound page would arrive with its own Host; only a local name may write
+        if (!isLoopbackHostHeader(req.headers.host)) { sendJson(res, { error: 'writes need a localhost Host header' }, 403); return; }
+        const body = await readBody(req, 10_000_000);
+        if (!body || typeof body.path !== 'string' || typeof body.content !== 'string') { sendJson(res, { error: 'path and content are required' }, 400); return; }
+        const abs = editablePath(body.path);
+        if (!abs) { sendJson(res, { error: 'invalid path' }, 400); return; }
+        let stat;
+        try { stat = await fsp.stat(abs); } catch { sendJson(res, { error: 'not found' }, 404); return; }
+        // optimistic concurrency: refuse to clobber a file that changed since it was opened
+        if (!body.force && body.mtime !== stat.mtimeMs) { sendJson(res, { error: 'changed on disk', mtime: stat.mtimeMs }, 409); return; }
+        try {
+          await fsp.writeFile(abs, body.content, 'utf8');
+          sendJson(res, { path: body.path, mtime: (await fsp.stat(abs)).mtimeMs });
+        } catch (err) {
+          sendJson(res, { error: `could not save: ${err.code || err.message}` }, 500);
+        }
+        return;
+      }
+      const rel = url.searchParams.get('p') || '';
+      const abs = editablePath(rel);
+      if (!abs) { sendJson(res, { error: 'invalid path' }, 400); return; }
+      try {
+        const [content, stat] = await Promise.all([fsp.readFile(abs, 'utf8'), fsp.stat(abs)]);
+        sendJson(res, { path: rel, content, mtime: stat.mtimeMs });
       } catch {
         sendJson(res, { error: 'not found' }, 404);
       }
