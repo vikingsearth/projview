@@ -191,4 +191,15 @@ test('superlite persists versions to its json file', async () => {
   assert.equal((await b.getVersion(v.id)).content, 'old');
   await b.close();
   fs.rmSync(b.file || '', { force: true });
+  fs.rmSync(b.versionsFile || '', { force: true });
+});
+
+test('superlite keeps versions out of the per-event index file', async () => {
+  const s = createStore({ kind: 'superlite', persist: false }, '/tmp/projview-test-versions-split');
+  await s.addVersion({ file: 'x.md', content: 'HISTORY-TEXT', mtime: 1 });
+  await s.recordEvent({ type: 'view', file: 'x.md' });
+  assert.doesNotMatch(fs.readFileSync(s.file, 'utf8'), /HISTORY-TEXT/);
+  assert.match(fs.readFileSync(s.versionsFile, 'utf8'), /HISTORY-TEXT/);
+  await s.close();
+  assert.equal(fs.existsSync(s.versionsFile), false);   // ephemeral: cleaned up with the rest
 });
