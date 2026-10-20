@@ -24,15 +24,39 @@ export function confirmLeave() {
   return true;
 }
 
-// Called after every render: offer "edit" in the breadcrumb bar.
+// md / mmd render to something other than their source, so they get a raw view too.
+export const hasRawView = (p) => /\.(md|mmd)$/i.test(p);
+
+// Called after every render: the view switcher in the breadcrumb bar.
+// md / mmd: rendered | raw | edit. json / yaml (already shown as source): edit.
+// "edit" only where this client may write.
 export function onFileShown(p) {
-  if (!p || !state.writable) return;
-  const btn = document.createElement('button');
-  btn.className = 'crumb-action';
-  btn.textContent = 'edit';
-  btn.title = 'edit source (e)';
-  btn.addEventListener('click', () => startEditing(p));
-  breadcrumbEl.appendChild(btn);
+  if (!p) return;
+  const views = [...(hasRawView(p) ? ['rendered', 'raw'] : []), ...(state.writable ? ['edit'] : [])];
+  if (!views.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'view-switch';
+  for (const v of views) {
+    const btn = document.createElement('button');
+    btn.dataset.view = v;
+    btn.textContent = v;
+    if (v === 'edit') btn.title = 'edit source (e)';
+    btn.addEventListener('click', () => switchView(p, v));
+    wrap.appendChild(btn);
+  }
+  breadcrumbEl.appendChild(wrap);
+  markView(hasRawView(p) ? state.view : null);
+}
+
+function markView(v) {
+  for (const b of breadcrumbEl.querySelectorAll('.view-switch button')) b.classList.toggle('on', b.dataset.view === v);
+}
+
+function switchView(p, v) {
+  if (v === 'edit') { if (!session) startEditing(p); return; }
+  if (session && !confirmLeave()) return;
+  state.view = v;
+  openFile(p);
 }
 
 // Live reload saw this file change while it was open in the editor.
@@ -74,6 +98,7 @@ async function startEditing(p) {
   textarea.value = text;
   session = { path: p, mtime: data.mtime, original: text, crlf, textarea, noticeEl: contentEl.querySelector('.editor-notice') };
   document.body.classList.add('editing');
+  markView('edit');
 
   const dirtyEl = contentEl.querySelector('.editor-dirty');
   textarea.addEventListener('input', () => { dirtyEl.hidden = !isDirty(); });
