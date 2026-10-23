@@ -37,6 +37,7 @@ projview /path/to/notes --no-open
 | rendering | markdown + syntax-highlighted code + **mermaid diagrams** (with pan/zoom) |
 | data files | JSON pretty-printed (literals kept exact), YAML shown as written - both with line numbers + indent guides |
 | search | `⌘K` palette - fuzzy filenames + full-text content with line snippets |
+| in-file find | `⌘⇧K` (or `tab` in the palette) searches just the open page; every match is highlighted, `↵` / `⇧↵` step through them, `esc` clears. the browser's own `⌘F` is left alone |
 | live reload | edit a file, the browser updates |
 | source editor | `edit` (or press `e`) opens the raw text beside a live preview; `⌘S` saves to disk. local runs only - read-only when exposed on a network |
 | history | the last 5 earlier versions of each file - from any change, not just projview's editor - to view and restore. kept until projview stops, or across runs with `--persist` |
