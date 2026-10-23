@@ -157,7 +157,7 @@ Requested paths are resolved and confined to the root.
 
 ### tree nav
 
-Collapsible dirs, cmd+K search palette, auto-expand on navigate.
+Collapsible dirs, cmd+K search palette (cmd+shift+K for the open page), auto-expand on navigate.
 
 ### viewer
 
