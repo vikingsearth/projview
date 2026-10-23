@@ -134,13 +134,14 @@ function rawPut(port, body, host = `127.0.0.1:${port}`) {
 }
 
 async function withRoot(files, fn, opts = {}) {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'projview-src-'));
+  const base = mkdtempSync(path.join(os.tmpdir(), 'projview-src-'));
+  const root = opts.under ? path.join(base, opts.under) : base;   // e.g. a root inside a dot-dir
   for (const [rel, body] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
     writeFileSync(path.join(root, rel), body);
   }
   const srv = await startServer(root, { port: opts.port, host: opts.host || '127.0.0.1', store: { kind: 'memory' } });
-  try { await fn({ root, port: srv.port, watching: srv.watching }); } finally { await srv.close(); rmSync(root, { recursive: true, force: true }); }
+  try { await fn({ root, port: srv.port, watching: srv.watching }); } finally { await srv.close(); rmSync(base, { recursive: true, force: true }); }
 }
 
 test('GET /api/source returns the raw text and its mtime', async () => {
@@ -291,6 +292,19 @@ test('deleting a file keeps its last text as a version', async () => {
     assert.ok(list, 'the deleted text is in history');
     assert.equal((await jget(`${base}/api/versions/${list.versions[0].id}`)).content, 'last words\n');
   }, { port: 41870 });
+});
+
+test('a root under a dot-dir is still watched; dot-dirs inside it are not', async () => {
+  await withRoot({ 'doc.md': 'one\n', '.notes/hidden.md': 'a\n' }, async ({ root, port, watching }) => {
+    const base = `http://127.0.0.1:${port}`;
+    await watching;
+    writeFileSync(path.join(root, '.notes/hidden.md'), 'b\n');   // ignored: hidden relative to the root
+    writeFileSync(path.join(root, 'doc.md'), 'two\n');
+    const list = await until(async () => { const r = await jget(`${base}/api/versions?p=doc.md`); return r.versions.length ? r : null; });
+    assert.ok(list, 'a change under a root inside a dot-dir is seen');
+    assert.equal((await jget(`${base}/api/versions/${list.versions[0].id}`)).content, 'one\n');
+    assert.equal((await fetch(`${base}/api/versions?p=.notes/hidden.md`)).status, 400);
+  }, { port: 41890, under: '.hidden/docs' });
 });
 
 test('back-to-back changes keep every in-between version, once each', async () => {

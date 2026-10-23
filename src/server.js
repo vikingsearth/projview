@@ -283,7 +283,9 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   // build so its initial scan (the slow part on big trees) overlaps it.
   const watcher = chokidar.watch(root, {
     ignoreInitial: true,
-    ignored: (p) => p.split(path.sep).some(isIgnoredDir)
+    // judged relative to the root: a root that itself sits under a dot-dir
+    // (~/.config/..., a worktree in .claude/) is still watched
+    ignored: (p) => path.relative(root, p).split(path.sep).some(isIgnoredDir)
   });
   // resolves once the scan is done; changes before then aren't seen. Not awaited
   // here so startup stays fast - tests (and anything that must not miss an
