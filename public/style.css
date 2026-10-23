@@ -484,10 +484,18 @@ body.toc-empty #toc-reopen { display: none; }
   box-shadow: var(--shadow);
   overflow: hidden;
 }
+.palette-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+  border-bottom: 1px solid var(--surface0);
+}
 #palette-input {
+  flex: 1;
+  min-width: 0;
   padding: 16px 18px;
   border: none;
-  border-bottom: 1px solid var(--surface0);
   background: transparent;
   color: var(--text);
   font-family: inherit;
@@ -495,6 +503,20 @@ body.toc-empty #toc-reopen { display: none; }
   outline: none;
 }
 #palette-input::placeholder { color: var(--overlay); }
+.palette-scope {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid var(--surface1);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--overlay);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.palette-scope:hover:not(:disabled) { border-color: var(--surface2); color: var(--subtext); }
+.palette-scope.on { border-color: var(--mauve); color: var(--mauve); }
+.palette-scope:disabled { opacity: 0.5; cursor: default; }
 .palette-results { overflow-y: auto; padding: 6px; }
 .palette-hint { padding: 22px; text-align: center; color: var(--overlay); font-size: 13px; }
 .pg-head {
@@ -533,6 +555,22 @@ body.toc-empty #toc-reopen { display: none; }
   text-overflow: ellipsis;
 }
 .snip-ln { color: var(--overlay); margin-right: 8px; }
+.pg-sec {
+  padding: 8px 10px 2px;
+  font-size: 11px;
+  color: var(--overlay);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hit {
+  font-size: 13px;
+  color: var(--subtext);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .palette mark { background: transparent; color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--mauve); text-underline-offset: 2px; padding: 0; }
 .palette-foot {
   display: flex;
@@ -543,15 +581,38 @@ body.toc-empty #toc-reopen { display: none; }
   font-size: 11px;
 }
 
-/* in-content highlight when opening a search hit */
-mark.search-hit {
-  background: color-mix(in srgb, var(--peach) 35%, transparent);
-  color: inherit;
-  border-radius: 3px;
-  padding: 0 2px;
-  animation: hitflash 0.45s ease;
+/* ---------------- in-file find (pill + painted matches) ---------------- */
+
+::highlight(pv-find) { background-color: color-mix(in srgb, var(--peach) 22%, transparent); }
+::highlight(pv-find-current) { background-color: color-mix(in srgb, var(--peach) 55%, transparent); }
+
+/* zero-height sticky dock: the pill floats over the page without pushing it down */
+.find-dock { position: sticky; top: 0; z-index: 6; height: 0; }
+.find-pill {
+  position: absolute;
+  top: 52px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 12px;
+  background: var(--mantle);
+  border: 1px solid var(--surface1);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  color: var(--subtext);
 }
-@keyframes hitflash { from { background: color-mix(in srgb, var(--peach) 70%, transparent); } }
+.find-pill[hidden], body.editing .find-pill, body.history .find-pill { display: none; }
+.find-query { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.find-count { margin: 0 6px 0 8px; font-family: var(--mono); font-size: 11px; color: var(--overlay); }
+.find-pill button {
+  width: 24px; height: 24px;
+  border: none; border-radius: 50%;
+  background: transparent; color: var(--subtext);
+  font: inherit; cursor: pointer;
+}
+.find-pill button:hover { background: var(--surface0); color: var(--text); }
 
 /* ---------------- toast ---------------- */
 
