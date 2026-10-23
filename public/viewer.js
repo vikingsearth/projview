@@ -1,4 +1,4 @@
-/* the document viewer: fetch + render a file, anchors, search highlight */
+/* the document viewer: fetch + render a file, anchors, hand-off to in-file find */
 
 import { $, esc, cssEsc } from './dom.js';
 import { state } from './store.js';
@@ -10,6 +10,7 @@ import { toast } from './toast.js';
 import { onFileRendered } from './comments.js';
 import { isEditing, confirmLeave, onFileShown, hasRawView } from './editor.js';
 import { leaveHistory } from './history.js';
+import { findIn, clearFind, onContentRendered } from './find.js';
 
 const contentEl = $('content');
 const viewerEl = $('viewer');
@@ -44,9 +45,12 @@ export async function openFile(p, fragment, highlight) {
   // comments quote the rendered text, so they live in the rendered view only
   onFileRendered(raw ? null : p);
   onFileShown(p);      // rendered / raw / edit switcher
+  // a content search hit lands with every match painted + the pill; a re-render
+  // of the same file (live reload, raw / rendered) keeps the find it had
+  const found = onContentRendered();
   if (fragment) scrollToFragment(fragment);
-  else if (highlight) highlightInContent(highlight);
-  else viewerEl.scrollTop = 0;
+  else if (highlight) { if (!findIn(highlight)) viewerEl.scrollTop = 0; }
+  else if (!found) viewerEl.scrollTop = 0;
 }
 
 export function scrollToFragment(frag) {
@@ -58,42 +62,13 @@ export function scrollToFragment(frag) {
   else toast(`no section "#${frag}" on this page`);
 }
 
-// Find the first occurrence of a search term in the rendered content, briefly
-// highlight it, and scroll it into view. Used when opening from a content match.
-function highlightInContent(term) {
-  if (!term) { viewerEl.scrollTop = 0; return; }
-  const t = term.trim().toLowerCase();
-  const candidates = [t, ...t.split(/\s+/)].filter(Boolean);
-  const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
-  let node;
-  while ((node = walker.nextNode())) {
-    const hay = node.nodeValue.toLowerCase();
-    for (const needle of candidates) {
-      const idx = hay.indexOf(needle);
-      if (idx === -1) continue;
-      const range = document.createRange();
-      range.setStart(node, idx);
-      range.setEnd(node, idx + needle.length);
-      const mark = document.createElement('mark');
-      mark.className = 'search-hit';
-      try { range.surroundContents(mark); } catch { viewerEl.scrollTop = 0; return; }
-      mark.scrollIntoView({ block: 'center' });
-      setTimeout(() => {
-        const parent = mark.parentNode;
-        if (parent) { parent.replaceChild(document.createTextNode(mark.textContent), mark); parent.normalize(); }
-      }, 3000);
-      return;
-    }
-  }
-  viewerEl.scrollTop = 0;   // nothing matched in the rendered text
-}
-
 function showNotFound(p) {
   contentEl.innerHTML =
     `<div class="empty-state">` +
     `<p>can't find <code>${esc(p)}</code></p>` +
     `<p class="muted">the link may be broken, or the file was renamed / removed</p></div>`;
   buildToc();
+  clearFind();
   onFileRendered(null);   // no file -> hide the comments affordances
   toast(`not found: ${p}`);
 }
