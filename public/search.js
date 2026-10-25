@@ -5,7 +5,8 @@ import { $, esc } from './dom.js';
 import { state } from './store.js';
 import { fileIcon as icon } from './icons.js';
 import { openFile } from './viewer.js';
-import { listMatches, findIn, findQuery } from './find.js';
+import { listMatches, findIn, findQuery, onRendered } from './find.js';
+import { findMatches } from './findcore.js';
 
 const paletteEl = $('palette');
 const inputEl = $('palette-input');
@@ -83,7 +84,6 @@ async function run() {
 }
 
 function render(data, q) {
-  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
   selectable = [];
   let html = '';
 
@@ -92,7 +92,7 @@ function render(data, q) {
     for (const f of data.files) {
       const i = selectable.length;
       selectable.push({ type: 'file', path: f.path });
-      html += row(i, icon(f.name), hl(f.name, terms), dimPath(f.path), '');
+      html += row(i, icon(f.name), hl(f.name, q), dimPath(f.path), '');
     }
   }
 
@@ -102,9 +102,9 @@ function render(data, q) {
       const i = selectable.length;
       selectable.push({ type: 'content', path: c.path, term: q });
       const snips = c.snippets
-        .map((s) => `<div class="snip"><span class="snip-ln">${s.line}</span>${hl(s.text, terms)}</div>`)
+        .map((s) => `<div class="snip"><span class="snip-ln">${s.line}</span>${hl(s.text, q)}</div>`)
         .join('');
-      html += row(i, icon(c.name), hl(c.name, terms), dimPath(c.path), snips, `${c.count}×`);
+      html += row(i, icon(c.name), hl(c.name, q), dimPath(c.path), snips, `${c.count}×`);
     }
   }
 
@@ -189,14 +189,15 @@ function bindRows() {
 
 /* ---------- highlight helper ---------- */
 
-function hl(text, terms) {
-  let out = esc(text);
-  for (const t of terms) {
-    if (!t) continue;
-    const re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
-    out = out.replace(re, '<mark>$1</mark>');
+// same matcher as the page, so the palette marks exactly what the page paints
+function hl(text, q) {
+  let out = '';
+  let last = 0;
+  for (const m of findMatches(text, q)) {
+    out += esc(text.slice(last, m.start)) + `<mark>${esc(text.slice(m.start, m.end))}</mark>`;
+    last = m.end;
   }
-  return out;
+  return out + esc(text.slice(last));
 }
 
 /* ---------- wiring ---------- */
@@ -212,9 +213,11 @@ window.addEventListener('keydown', (e) => {
 
 inputEl.addEventListener('input', () => {
   clearTimeout(debounce);
-  if (scope === 'file') run();   // local, no fetch to debounce
-  else debounce = setTimeout(run, 120);
+  debounce = setTimeout(run, scope === 'file' ? 40 : 120);   // this-file is local: a shorter wait
 });
+
+// a this-file list holds match indexes; a re-render (live reload) remakes it
+onRendered(() => { if (!paletteEl.hidden && scope === 'file') run(); });
 inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
   else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
