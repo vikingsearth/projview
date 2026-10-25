@@ -16,23 +16,47 @@ const HL = typeof CSS !== 'undefined' && CSS.highlights;   // Custom Highlight A
 const LIMIT = 1000;   // matches painted per page; the palette lists fewer
 
 let active = null;    // { q, path, ranges, index } while the pill is up
+let cache = null;     // { text, segs, heads } for the page as rendered now
+const renderHooks = [];
+
+// any change to the page (a render, mermaid redrawing, comment buttons) drops the cache
+new MutationObserver(() => { cache = null; })
+  .observe(contentEl, { childList: true, subtree: true, characterData: true });
+
+// Text in different blocks gets a newline between it, so a match never runs
+// from one line / cell / label into the next. Raw and data views put each line
+// in its own .cl span with nothing between them; svg <text> is a mermaid label.
+const BLOCK = 'p, li, td, th, h1, h2, h3, h4, h5, h6, pre, blockquote, dt, dd, div, .cl, text';
 
 /* ---------- text <-> DOM ---------- */
 
 // Flat text of the rendered content + where each text node starts in it.
 // <style> / <script> text (mermaid SVGs carry a <style>) isn't page text.
+// Query terms never contain whitespace, so no match crosses an added newline.
 function segments() {
   const segs = [];
   let text = '';
+  let block = null;
   const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT, {
     acceptNode: (n) => (n.parentElement?.closest('style, script') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT)
   });
   let node;
   while ((node = walker.nextNode())) {
+    const b = node.parentElement?.closest(BLOCK) || null;
+    if (b !== block && text) text += '\n';
+    block = b;
     segs.push({ node, start: text.length });
     text += node.nodeValue;
   }
   return { text, segs };
+}
+
+function pageText() {
+  if (!cache) {
+    const { text, segs } = segments();
+    cache = { text, segs, heads: headingOffsets(segs) };
+  }
+  return cache;
 }
 
 // Matches are in document order, so one forward pass maps them all to Ranges.
@@ -69,8 +93,7 @@ function headingOffsets(segs) {
 // Matches on the current page for the palette: a snippet + the nearest heading.
 // Index i here is the same match as findIn(q, i).
 export function listMatches(q, limit = LIMIT) {
-  const { text, segs } = segments();
-  const heads = headingOffsets(segs);
+  const { text, heads } = pageText();
   let h = -1;
   return findMatches(text, q, Math.min(limit, LIMIT)).map((m) => {
     while (h + 1 < heads.length && heads[h + 1].start <= m.start) h++;
@@ -80,7 +103,7 @@ export function listMatches(q, limit = LIMIT) {
 
 // Paint every match of q, jump to match `index`, show the pill. Returns the count.
 export function findIn(q, index = 0) {
-  const { text, segs } = segments();
+  const { text, segs } = pageText();
   const ranges = toRanges(segs, findMatches(text, q, LIMIT));
   if (!ranges.length) { clearFind(); return 0; }
   active = { q, path: state.currentPath, ranges, index: Math.min(Math.max(0, index), ranges.length - 1) };
@@ -94,12 +117,17 @@ export function clearFind() {
   pillEl.hidden = true;
 }
 
+// Run fn after every render (the palette refreshes a this-file list it is showing).
+export const onRendered = (fn) => { renderHooks.push(fn); };
+
 // The active query, so the palette can open pre-filled.
 export const findQuery = () => active?.q || '';
 
 // Called by the viewer after every render: the same file (live reload, raw /
 // rendered switch) keeps its find; any other file drops it. True if it kept one.
 export function onContentRendered() {
+  cache = null;
+  for (const fn of renderHooks) fn();
   if (!active) return false;
   if (active.path !== state.currentPath) { clearFind(); return false; }
   return findIn(active.q, active.index) > 0;
@@ -116,9 +144,23 @@ function show() {
   queryEl.textContent = q;
   countEl.textContent = `${index + 1}/${ranges.length}${ranges.length === LIMIT ? '+' : ''}`;
   pillEl.hidden = false;
-  const r = ranges[index].getBoundingClientRect();
+  reveal(ranges[index]);
+}
+
+// Bring a match on screen: open any collapsed <details> around it, centre it
+// in the viewer, and scroll a wide code block sideways to it.
+function reveal(range) {
+  const el = range.startContainer.parentElement;
+  for (let d = el?.closest('details'); d; d = d.parentElement?.closest('details')) d.open = true;
+  const r = range.getBoundingClientRect();
+  if (!r.height && !r.width) return;
   const v = viewerEl.getBoundingClientRect();
-  if (r.height || r.width) viewerEl.scrollTop += (r.top - v.top) - v.height / 2;
+  viewerEl.scrollTop += (r.top - v.top) - v.height / 2;
+  const pre = el.closest('pre');
+  if (pre && pre.scrollWidth > pre.clientWidth) {
+    const p = pre.getBoundingClientRect();
+    pre.scrollLeft += (r.left - p.left) - p.width / 2;
+  }
 }
 
 function step(d) {
