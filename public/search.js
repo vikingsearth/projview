@@ -5,7 +5,7 @@ import { $, esc } from './dom.js';
 import { state } from './store.js';
 import { fileIcon as icon } from './icons.js';
 import { openFile } from './viewer.js';
-import { listMatches, findIn, findQuery, onRendered } from './find.js';
+import { listMatches, findIn, findQuery, onRendered, LIMIT } from './find.js';
 import { findMatches } from './findcore.js';
 
 const paletteEl = $('palette');
@@ -136,7 +136,10 @@ function renderFile(q) {
     selectable.push({ type: 'hit', q, index: i });
     html += `<div class="presult" data-i="${i}"><div class="hit">${esc(h.before)}<mark>${esc(h.match)}</mark>${esc(h.after)}</div></div>`;
   }
-  if (hits.length > SHOWN) html += `<div class="palette-hint">+${hits.length - SHOWN} more - step through them all on the page</div>`;
+  if (hits.length > SHOWN) {
+    const more = `${hits.length - SHOWN}${hits.length === LIMIT ? '+' : ''}`;   // listMatches stops at LIMIT
+    html += `<div class="palette-hint">+${more} more - step through them all on the page</div>`;
+  }
   resultsEl.innerHTML = html;
   selected = 0;
   paint();
