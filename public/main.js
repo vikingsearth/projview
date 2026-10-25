@@ -11,6 +11,7 @@ import './toc.js';
 import { runMermaid } from './mermaid.js';
 import { onThemeChange } from './theme.js';
 import './search.js';
+import { refreshFind } from './find.js';
 import './comments.js';
 import './editor.js';
 
@@ -22,7 +23,7 @@ window.addEventListener('hashchange', () => {
 
 // light/dark flip: CSS follows on its own; diagrams are baked SVG, so redraw them
 // in place (no re-fetch, no scroll jump, an open editor is left alone)
-onThemeChange(() => runMermaid({ rerender: true }));
+onThemeChange(async () => { await runMermaid({ rerender: true }); refreshFind(); });
 
 async function boot() {
   await loadTree();

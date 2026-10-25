@@ -13,7 +13,7 @@ const queryEl = $('find-query');
 const countEl = $('find-count');
 
 const HL = typeof CSS !== 'undefined' && CSS.highlights;   // Custom Highlight API?
-const LIMIT = 1000;   // matches painted per page; the palette lists fewer
+export const LIMIT = 1000;   // matches painted per page; the palette lists fewer
 
 let active = null;    // { q, path, ranges, index } while the pill is up
 let cache = null;     // { text, segs, heads } for the page as rendered now
@@ -63,13 +63,15 @@ function pageText() {
 function toRanges(segs, matches) {
   const out = [];
   let i = 0;
-  const at = (off) => {
-    while (i < segs.length - 1 && off > segs[i].start + segs[i].node.nodeValue.length) i++;
+  // a start on a node boundary belongs to the next node (the one the match is
+  // in); an end on one belongs to the node it closes
+  const at = (off, start) => {
+    while (i < segs.length - 1 && (start ? off >= segs[i + 1].start : off > segs[i].start + segs[i].node.nodeValue.length)) i++;
     return { node: segs[i].node, offset: off - segs[i].start };
   };
   for (const m of matches) {
-    const a = at(m.start);
-    const b = at(m.end);
+    const a = at(m.start, true);
+    const b = at(m.end, false);
     const r = document.createRange();
     try { r.setStart(a.node, a.offset); r.setEnd(b.node, b.offset); } catch { continue; }
     out.push(r);
@@ -102,12 +104,12 @@ export function listMatches(q, limit = LIMIT) {
 }
 
 // Paint every match of q, jump to match `index`, show the pill. Returns the count.
-export function findIn(q, index = 0) {
+export function findIn(q, index = 0, scroll = true) {
   const { text, segs } = pageText();
   const ranges = toRanges(segs, findMatches(text, q, LIMIT));
   if (!ranges.length) { clearFind(); return 0; }
   active = { q, path: state.currentPath, ranges, index: Math.min(Math.max(0, index), ranges.length - 1) };
-  show();
+  show(scroll);
   return ranges.length;
 }
 
@@ -115,6 +117,12 @@ export function clearFind() {
   active = null;
   if (HL) { CSS.highlights.delete('pv-find'); CSS.highlights.delete('pv-find-current'); }
   pillEl.hidden = true;
+}
+
+// Re-find in place after the page changed without a render (the theme flip
+// redraws mermaid SVGs): fresh ranges, same position, no scroll.
+export function refreshFind() {
+  if (active && active.path === state.currentPath) findIn(active.q, active.index, false);
 }
 
 // Run fn after every render (the palette refreshes a this-file list it is showing).
@@ -135,7 +143,7 @@ export function onContentRendered() {
 
 /* ---------- pill ---------- */
 
-function show() {
+function show(scroll = true) {
   const { ranges, index, q } = active;
   if (HL) {
     CSS.highlights.set('pv-find', new Highlight(...ranges));
@@ -144,7 +152,7 @@ function show() {
   queryEl.textContent = q;
   countEl.textContent = `${index + 1}/${ranges.length}${ranges.length === LIMIT ? '+' : ''}`;
   pillEl.hidden = false;
-  reveal(ranges[index]);
+  if (scroll) reveal(ranges[index]);
 }
 
 // Bring a match on screen: open any collapsed <details> around it, centre it
@@ -187,7 +195,8 @@ window.addEventListener('keydown', (e) => {
   if (document.body.classList.contains('editing') || document.body.classList.contains('history')) return;
   if (e.target.closest?.('input, textarea, select, [contenteditable]')) return;
   if (e.key === 'Escape') clearFind();
-  else if (e.key === 'Enter' && !e.target.closest?.('a, button')) {   // a focused link / button keeps its enter
+  // a focused control (link, button, <summary>, anything tabbable) keeps its enter
+  else if (e.key === 'Enter' && !e.target.closest?.('a, button, summary, audio, video, [tabindex]')) {
     e.preventDefault();
     step(e.shiftKey ? -1 : 1);
   }
