@@ -299,12 +299,16 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     if (!before || Buffer.byteLength(before.content) > VERSION_MAX_BYTES) return;
     try { await store.addVersion({ file, content: before.content, mtime: before.mtime }); } catch { /* versions are best-effort */ }
   };
-  const touch = async (p, event) => {
+  // `quiet`: a re-check - stay silent unless the text really moved on
+  const touch = async (p, event, quiet = false) => {
     // same rule as the API: previewable, not hidden, real path inside the root
     // (a symlink to an outside file is neither indexed nor versioned)
     if (!(await editablePath(rel(p)))) return;
     const before = indexedSource(rel(p));     // the text this change replaces
+    if (quiet && before && before.mtime === (await fsp.stat(p).catch(() => null))?.mtimeMs) return;
     const entry = await updateFile(rel(p));   // refresh in-memory index, get the entry
+    const changed = !!entry && (!before || before.content !== entry.content);
+    if (quiet && !changed) return;
     if (entry) await store.update(entry);     // mirror the change into the store
     if (entry && before && before.content !== entry.content) await keepVersion(rel(p), before);
     broadcast(event, { path: rel(p) });
@@ -324,8 +328,19 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     queues.set(p, next);
     next.then(() => { if (queues.get(p) === next) queues.delete(p); });
   };
+  // chokidar drops (not defers) a change landing within 50ms of the last one
+  // it emitted for that path, so a quick second write - a save right after an
+  // outside edit - was never seen: no index update, no version, no reload.
+  // Re-check each changed file once that window has passed.
+  const onChange = serial((p, quiet) => touch(p, 'change', quiet));
+  const rechecks = new Map();
+  const changed = (p) => {
+    onChange(p);
+    clearTimeout(rechecks.get(p));
+    rechecks.set(p, setTimeout(() => { rechecks.delete(p); onChange(p, true); }, 80));
+  };
   watcher
-    .on('change', serial((p) => touch(p, 'change')))
+    .on('change', changed)
     .on('add', serial((p) => touch(p, 'tree')))
     .on('unlink', serial(unlink))
     .on('addDir', () => broadcast('tree'))
@@ -334,6 +349,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
 
   const close = () => new Promise((resolve) => {
     watcher.close();
+    for (const t of rechecks.values()) clearTimeout(t);
     for (const res of sseClients) res.end();
     Promise.resolve(store.close()).finally(() => server.close(() => resolve()));
   });
