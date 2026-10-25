@@ -1,8 +1,11 @@
 /* pure in-file find helpers (no DOM) - importable by tests */
 
-// Query -> distinct lowercase terms, the same split the server search uses.
+// Query -> distinct terms (compared case-insensitively), the same whitespace
+// split the server search uses. Kept as typed: lowercasing can change a
+// character (\u0130 -> i + U+0307) so it no longer matches under the i flag.
 export function queryTerms(q) {
-  return [...new Set((q || '').toLowerCase().split(/\s+/).filter(Boolean))];
+  const seen = new Set();
+  return (q || '').split(/\s+/).filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()));
 }
 
 // Every occurrence of any query term in `text`, as non-overlapping
