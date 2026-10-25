@@ -4,8 +4,14 @@ import { queryTerms, findMatches, snippet } from '../public/findcore.js';
 
 const spans = (text, q, limit) => findMatches(text, q, limit).map((m) => text.slice(m.start, m.end));
 
-test('terms are lowercased, split on whitespace and deduped', () => {
-  assert.deepEqual(queryTerms('  Live  RELOAD live '), ['live', 'reload']);
+test('terms split on whitespace, deduped case-insensitively, kept as typed', () => {
+  assert.deepEqual(queryTerms('  Live  RELOAD live '), ['Live', 'RELOAD']);
+});
+
+test('a query matches the text it was typed from, whatever its case rules', () => {
+  // lowercasing \u0130 gives two characters, which no longer match it
+  assert.deepEqual(spans('in İstanbul', 'İstanbul'), ['İstanbul']);
+  assert.deepEqual(spans('in İstanbul', 'İSTANBUL'), ['İstanbul']);
 });
 
 test('empty query or text matches nothing', () => {
