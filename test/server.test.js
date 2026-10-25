@@ -305,6 +305,23 @@ test('a root under a dot-dir is still watched', async () => {
   }, { port: 41890, under: '.hidden/docs' });
 });
 
+test('a second write inside the watcher\'s 50ms change throttle is still seen', async () => {
+  await withRoot({ 'doc.md': 'v1\n' }, async ({ root, port, watching }) => {
+    const base = `http://127.0.0.1:${port}`;
+    await watching;
+    writeFileSync(path.join(root, 'doc.md'), 'v2\n');
+    // as soon as the first change is handled, write again: chokidar drops this one
+    const end = Date.now() + 4000;
+    while (Date.now() < end && !(await jget(`${base}/api/versions?p=doc.md`)).versions.length) await new Promise((r) => setTimeout(r, 2));
+    writeFileSync(path.join(root, 'doc.md'), 'v3\n');
+    const list = await until(async () => { const r = await jget(`${base}/api/versions?p=doc.md`); return r.versions.length >= 2 ? r : null; });
+    assert.ok(list, 'the quick second write was picked up');
+    const texts = await Promise.all(list.versions.map(async (v) => (await jget(`${base}/api/versions/${v.id}`)).content));
+    assert.deepEqual(texts, ['v2\n', 'v1\n']);
+    assert.match((await jget(`${base}/api/search?q=v3`)).content[0]?.path || '', /doc\.md/);
+  }, { port: 41895 });
+});
+
 test('back-to-back changes keep every in-between version, once each', async () => {
   await withRoot({ 'doc.md': 'v1\n' }, async ({ root, port, watching }) => {
     const base = `http://127.0.0.1:${port}`;
