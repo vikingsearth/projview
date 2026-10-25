@@ -122,7 +122,10 @@ export function clearFind() {
 // Re-find in place after the page changed without a render (the theme flip
 // redraws mermaid SVGs): fresh ranges, same position, no scroll.
 export function refreshFind() {
-  if (active && active.path === state.currentPath) findIn(active.q, active.index, false);
+  if (!active || active.path !== state.currentPath) return;
+  // over the editor or history the page isn't the rendered file; leaving them re-renders and re-finds
+  if (document.body.classList.contains('editing') || document.body.classList.contains('history')) return;
+  findIn(active.q, active.index, false);
 }
 
 // Run fn after every render (the palette refreshes a this-file list it is showing).
