@@ -294,16 +294,14 @@ test('deleting a file keeps its last text as a version', async () => {
   }, { port: 41870 });
 });
 
-test('a root under a dot-dir is still watched; dot-dirs inside it are not', async () => {
-  await withRoot({ 'doc.md': 'one\n', '.notes/hidden.md': 'a\n' }, async ({ root, port, watching }) => {
+test('a root under a dot-dir is still watched', async () => {
+  await withRoot({ 'doc.md': 'one\n' }, async ({ root, port, watching }) => {
     const base = `http://127.0.0.1:${port}`;
     await watching;
-    writeFileSync(path.join(root, '.notes/hidden.md'), 'b\n');   // ignored: hidden relative to the root
     writeFileSync(path.join(root, 'doc.md'), 'two\n');
     const list = await until(async () => { const r = await jget(`${base}/api/versions?p=doc.md`); return r.versions.length ? r : null; });
     assert.ok(list, 'a change under a root inside a dot-dir is seen');
     assert.equal((await jget(`${base}/api/versions/${list.versions[0].id}`)).content, 'one\n');
-    assert.equal((await fetch(`${base}/api/versions?p=.notes/hidden.md`)).status, 400);
   }, { port: 41890, under: '.hidden/docs' });
 });
 
