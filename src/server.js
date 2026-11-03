@@ -9,6 +9,7 @@ import { buildTree, isHiddenPath, isIgnoredDir, isPreviewable } from './walk.js'
 import { renderFile, renderSource } from './render.js';
 import { buildIndex, updateFile, removeFile, search, indexedSource } from './search.js';
 import { createStore, gitOrOsUser, isPersistent, VERSION_LIMIT } from './store.js';
+import { codeLang } from '../public/codetypes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -177,6 +178,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         if (!body || typeof body.path !== 'string' || typeof body.content !== 'string') { sendJson(res, { error: 'path and content are required' }, 400); return; }
         const abs = await editablePath(body.path);
         if (!abs) { sendJson(res, { error: 'invalid path' }, 400); return; }
+        if (codeLang(abs)) { sendJson(res, { error: 'read-only: code files are view-only' }, 403); return; }
         let stat;
         try { stat = await fsp.stat(abs); } catch { sendJson(res, { error: 'not found' }, 404); return; }
         // optimistic concurrency: refuse to clobber a file that changed since it was opened
@@ -295,8 +297,9 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
   // keep text a change replaced (or a delete removed) as a version - any source
   // counts: projview's editor, an IDE, git, agents
+  // (not code files: they're view-only, so there's nothing to restore to)
   const keepVersion = async (file, before) => {
-    if (!before || Buffer.byteLength(before.content) > VERSION_MAX_BYTES) return;
+    if (codeLang(file) || !before || Buffer.byteLength(before.content) > VERSION_MAX_BYTES) return;
     try { await store.addVersion({ file, content: before.content, mtime: before.mtime }); } catch { /* versions are best-effort */ }
   };
   // `quiet`: a re-check - stay silent unless the text really moved on

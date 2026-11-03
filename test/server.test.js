@@ -336,3 +336,23 @@ test('back-to-back changes keep every in-between version, once each', async () =
     assert.deepEqual(texts, ['v3\n', 'v2\n', 'v1\n']);
   }, { port: 41880 });
 });
+
+test('code files are view-only: shown as source, saves refused, no versions kept', async () => {
+  await withRoot({ 'app.js': 'let a = 1;\n' }, async ({ root, port, watching }) => {
+    const base = `http://127.0.0.1:${port}`;
+    const { html } = await jget(`${base}/api/file?p=app.js`);
+    assert.match(html, /data-lang="javascript"/);
+
+    const { mtime } = await jget(`${base}/api/source?p=app.js`);
+    for (const body of [{ path: 'app.js', content: 'pwned', mtime }, { path: 'app.js', content: 'pwned', force: true }]) {
+      assert.equal((await rawPut(port, body)).status, 403);
+    }
+    assert.equal(readFileSync(path.join(root, 'app.js'), 'utf8'), 'let a = 1;\n');
+
+    await watching;
+    writeFileSync(path.join(root, 'app.js'), 'let a = 2;\n');   // an outside edit still live-reloads...
+    const updated = await until(async () => (await jget(`${base}/api/search?q=a%20%3D%202`)).content.length);
+    assert.ok(updated, 'the change reached the search index');
+    assert.deepEqual((await jget(`${base}/api/versions?p=app.js`)).versions, []);   // ...but keeps no version
+  }, { port: 41900 });
+});

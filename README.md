@@ -2,7 +2,7 @@
 
 a fast, zero-config local viewer for **markdown** + **mermaid** files. run it in
 any directory, get a quiet localhost view - light or dark, following your OS - of
-every `.md` / `.mmd` (plus `.json` / `.yaml`) under it: rendered diagrams, search,
+every `.md` / `.mmd` (plus `.json` / `.yaml`, and code files as read-only source) under it: rendered diagrams, search,
 live reload. close it and nothing's left behind.
 
 that's the product. point it at a docs folder, read comfortably, ctrl-c, gone.
@@ -36,6 +36,7 @@ projview /path/to/notes --no-open
 | tree nav | every `.md` / `.mmd` / `.json` / `.yml` / `.yaml` under the root (skips `node_modules`, `dist`, dot-dirs, lockfiles) |
 | rendering | markdown + syntax-highlighted code + **mermaid diagrams** (with pan/zoom) |
 | data files | JSON pretty-printed (literals kept exact), YAML shown as written - both with line numbers + indent guides |
+| code files | `.cs` `.js` `.ts` `.py` `.html` `.css` `.go` `.java` `.sql` `.sh` and more - shown as highlighted source, never rendered (an `.html` file is not run) and never editable; minified `*.min.*` bundles are skipped |
 | search | `⌘K` palette - fuzzy filenames + full-text content with line snippets |
 | in-file find | `⌘⇧K` (or `tab` in the palette) searches just the open page; every match is highlighted, `↵` / `⇧↵` step through them, `esc` clears. the browser's own `⌘F` is left alone |
 | live reload | edit a file, the browser updates |

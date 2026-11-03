@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderMarkdown, renderMermaid, renderFile, formatJson, renderJson, renderYaml, LINE_LIMIT, renderSource } from '../src/render.js';
+import { renderMarkdown, renderMermaid, renderFile, formatJson, renderJson, renderYaml, LINE_LIMIT, renderSource, renderCode } from '../src/render.js';
 
 test('headings get slug ids (pv- prefixed to avoid collisions)', () => {
   assert.match(renderMarkdown('# Hello World'), /<h1[^>]*id="pv-hello-world"/);
@@ -117,4 +117,23 @@ test('renderSource tags markdown h1-h3 lines with the rendered ids, for the outl
   assert.doesNotMatch(html, /data-toc="h4"/);
   // the same ids the rendered view uses, so #fragments land in both views
   assert.match(renderMarkdown(src), /id="pv-section-one"/);
+});
+
+test('renderCode shows code as highlighted, numbered source in its language', () => {
+  const html = renderCode('Greeter.cs', 'class A\n{\n    int x;\n}\n');
+  assert.match(html, /data-lang="csharp" style="--step:4"/);
+  assert.equal((html.match(/class="cl"/g) || []).length, 4);
+  assert.match(html, /hljs-keyword/);
+});
+
+test('renderCode never renders html - tags come out escaped', () => {
+  const html = renderCode('page.html', '<script>alert(1)</script>\n<h1>hi</h1>\n');
+  assert.match(html, /data-lang="xml"/);
+  assert.doesNotMatch(html, /<script>|<h1>/);
+  assert.match(html, /&lt;/);
+});
+
+test('renderFile routes code extensions to the code view', () => {
+  for (const ext of ['.cs', '.css', '.html', '.js', '.ts', '.py']) assert.match(renderFile(ext, 'x'), /code-view/, ext);
+  assert.match(renderFile('.TS', 'x'), /data-lang="typescript"/);
 });

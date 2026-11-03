@@ -26,14 +26,24 @@ test('isPreviewable accepts md/mmd/json/yaml (case-insensitive)', () => {
   assert.equal(isPreviewable('noext'), false);
 });
 
+test('isPreviewable accepts code files', () => {
+  for (const f of ['a.cs', 'a.css', 'a.html', 'a.js', 'a.ts', 'a.tsx', 'a.py', 'A.GO']) assert.equal(isPreviewable(f), true, f);
+});
+
+test('isPreviewable skips minified bundles', () => {
+  assert.equal(isPreviewable('vendor.min.js'), false);
+  assert.equal(isPreviewable('site.min.css'), false);
+  assert.equal(isPreviewable('admin.js'), true);
+});
+
 test('isPreviewable skips lockfiles', () => {
   assert.equal(isPreviewable('package-lock.json'), false);
   assert.equal(isPreviewable('sub/pnpm-lock.yaml'), false);
   assert.equal(isPreviewable('package.json'), true);
 });
 
-test('buildTree indexes the docs fixtures (19 files)', () => {
-  assert.equal(countFiles(buildTree(DOCS)), 19);
+test('buildTree indexes the docs fixtures (25 files)', () => {
+  assert.equal(countFiles(buildTree(DOCS)), 25);
 });
 
 test('buildTree sorts dirs before files at each level', () => {
