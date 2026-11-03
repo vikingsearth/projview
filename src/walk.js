@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { CODE_LANGS } from '../public/codetypes.js';
 
 // Directories we never descend into - noise or huge.
 const IGNORED_DIRS = new Set([
@@ -7,10 +8,12 @@ const IGNORED_DIRS = new Set([
   '.cache', '.turbo', 'vendor', '.venv', '__pycache__'
 ]);
 
-export const PREVIEWABLE_EXTS = new Set(['.md', '.mmd', '.json', '.yml', '.yaml']);
+export const PREVIEWABLE_EXTS = new Set(['.md', '.mmd', '.json', '.yml', '.yaml', ...Object.keys(CODE_LANGS)]);
 
 // Previewable by extension but machine-generated noise - huge, never read.
 const IGNORED_FILES = new Set(['package-lock.json', 'pnpm-lock.yaml']);
+// Minified bundles - one enormous line, unreadable as source.
+const MINIFIED = /\.min\.[^.]+$/i;
 
 // True if a path segment should stop the walk (ignored name or any dot-dir).
 export function isIgnoredDir(name) {
@@ -24,7 +27,8 @@ export function isHiddenPath(relPath) {
 }
 
 export function isPreviewable(filePath) {
-  if (IGNORED_FILES.has(path.basename(filePath).toLowerCase())) return false;
+  const name = path.basename(filePath);
+  if (IGNORED_FILES.has(name.toLowerCase()) || MINIFIED.test(name)) return false;
   return PREVIEWABLE_EXTS.has(path.extname(filePath).toLowerCase());
 }
 

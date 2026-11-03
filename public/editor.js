@@ -30,11 +30,14 @@ export function confirmLeave() {
 // md / mmd render to something other than their source, so they get a raw view too.
 export const hasRawView = (p) => ['md', 'mmd'].includes(fileKind(p));
 
+// Code files are view-only: no edit, no history, no switcher at all.
+const isViewOnly = (p) => fileKind(p) === 'code';
+
 // Called after every render: the view switcher in the breadcrumb bar.
 // md / mmd: rendered | raw | edit | history. json / yaml (already shown as
 // source): edit | history. "edit" only where this client may write.
 export function onFileShown(p) {
-  if (!p) return;
+  if (!p || isViewOnly(p)) return;
   const views = [...(hasRawView(p) ? ['rendered', 'raw'] : []), ...(state.writable ? ['edit'] : []), 'history'];
   const wrap = document.createElement('div');
   wrap.className = 'view-switch';
@@ -297,7 +300,7 @@ function hideNotice() { if (session) session.noticeEl.hidden = true; }
 // "e" opens the editor on the current page, unless the user is typing somewhere
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'e' || e.metaKey || e.ctrlKey || e.altKey || session) return;
-  if (e.target.closest?.('input, textarea, [contenteditable]') || !state.writable || !state.currentPath) return;
+  if (e.target.closest?.('input, textarea, [contenteditable]') || !state.writable || !state.currentPath || isViewOnly(state.currentPath)) return;
   if (!$('palette').hidden || !$('zoom').hidden) return;
   e.preventDefault();
   startEditing(state.currentPath);

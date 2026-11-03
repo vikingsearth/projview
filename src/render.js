@@ -1,5 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
+import { codeLang } from '../public/codetypes.js';
 
 function escapeHtml(str) {
   return str
@@ -228,6 +229,12 @@ export function renderYaml(content) {
   return renderCodeView(content, 'yaml');
 }
 
+// Code (cs, js, py, ...): its source exactly as written - highlighted, numbered,
+// with indent guides. Never rendered: an .html file is shown, not run.
+export function renderCode(name, content) {
+  return renderCodeView(content, codeLang(name) || 'plaintext');
+}
+
 // The "raw" view of a markdown / mermaid file: its source in the code view
 // (highlighted, numbered, with indent guides), exactly as written.
 const SOURCE_LANG = { '.md': 'markdown', '.mmd': 'plaintext' };
@@ -250,6 +257,7 @@ function headingLines(content) {
 }
 
 export function renderFile(ext, content) {
+  if (codeLang(ext)) return renderCode(ext, content);
   if (ext === '.mmd') return renderMermaid(content);
   if (ext === '.json') return renderJson(content);
   if (ext === '.yml' || ext === '.yaml') return renderYaml(content);

@@ -183,6 +183,7 @@ body {
 .row .ico-md { color: var(--overlay); }
 .row .ico-mmd { color: var(--overlay); }
 .row .ico-data { color: var(--overlay); }
+.row .ico-code { color: var(--overlay); }
 .row .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.dir .label { font-weight: 500; color: var(--text); }
 
@@ -304,7 +305,7 @@ body {
 
 .markdown-body ul, .markdown-body ol { padding-left: 1.5em; }
 
-/* json / yaml code view: line numbers + one indent guide per level */
+/* json / yaml / code view: line numbers + one indent guide per level */
 .markdown-body pre.code-view { padding: 14px 0; line-height: 1.6; counter-reset: ln; }
 .markdown-body pre.code-view code { display: block; min-width: max-content; }
 .code-view .cl { display: flex; min-height: 1.6em; padding-right: 18px; }
@@ -324,6 +325,7 @@ body {
 .code-view .cl:hover::before { color: var(--overlay); }
 .code-view .lc {
   white-space: pre;
+  tab-size: 2;   /* matches the 2 columns a tab counts as for indent guides */
   background-image: repeating-linear-gradient(90deg,
     var(--surface2) 0 1px, transparent 1px calc(var(--step) * 1ch));
   background-size: calc(var(--i) * 1ch) 100%;

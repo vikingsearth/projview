@@ -19,6 +19,10 @@ faults. use this tree while iterating on the tool.
 | data | [minified json](data/minified.json) | one-line JSON -> pretty-printed, big int kept exact |
 | data | [not-strict json](data/not-strict.jsonc.json) | JSONC with comments - shown as-is with a notice |
 | data | [values.yaml](data/values.yaml) | helm-style YAML - indent guides, block scalar, multi-doc |
+| code | [Greeter.cs](code/Greeter.cs) | C# source - highlighted, 4-space guides, no edit button |
+| code | [page.html](code/page.html) | HTML shown as source - its `<script>` must never run |
+| code | [tabs.go](code/tabs.go) | tab-indented Go - guides still line up |
+| code | [report.py](code/report.py) · [util.ts](code/util.ts) · [styles.css](code/styles.css) | more languages; `bundle.min.js` alongside is skipped |
 | reference | [api](reference/api.md) | long doc - TOC + scroll-spy |
 | reference | [glossary](reference/glossary.md) | cross-links + external links |
 | edge | [syntax stress](edge-cases/syntax-stress.md) | gnarly markdown + inline broken fence |

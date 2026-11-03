@@ -28,5 +28,5 @@ contentEl.addEventListener('click', (e) => {
   const [pathPart, frag] = href.split('#');
   const target = resolveRelative(state.currentPath, pathPart);
   if (fileKind(target)) openFile(target, frag);
-  else toast(`can't preview "${pathPart}" - only .md / .mmd / .json / .yaml for now`);
+  else toast(`can't preview "${pathPart}" - not a type projview can show`);
 });
