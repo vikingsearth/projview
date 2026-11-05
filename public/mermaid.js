@@ -17,7 +17,7 @@ export async function runMermaid({ rerender = false } = {}) {
   mermaid.initialize({
     startOnLoad: false,
     theme: currentTheme() === 'light' ? 'neutral' : 'dark',   // read per render: themes can flip mid-session
-    securityLevel: 'loose',
+    securityLevel: 'strict',   // no click callbacks or raw html labels: a diagram stays a diagram
     suppressErrorRendering: true   // we render our own error card; don't inject the default bomb
   });
   const nodes = [...contentEl.querySelectorAll('.mermaid')];
