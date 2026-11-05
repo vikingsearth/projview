@@ -164,3 +164,9 @@ test('a heading full of spaces renders fast (no quadratic {#id} match)', () => {
   assert.ok(Date.now() - t < 1000, `took ${Date.now() - t}ms`);
   assert.match(renderMarkdown('## Title   {#custom-id}'), /<h2 id="pv-custom-id">Title<\/h2>/);
 });
+
+test('markdown can\'t carry tags that act on the page (meta refresh, base, link)', () => {
+  const html = renderMarkdown('<meta http-equiv="refresh" content="0;url=https://evil.example/">\n\n<BASE href="https://evil.example/">\n\n<link rel=stylesheet href=//x>\n\n<me<meta>ta http-equiv=refresh>\n\n`<meta>` stays as code\n');
+  assert.doesNotMatch(html, /<(meta|base|link)\b/i);
+  assert.match(html, /<code>&lt;meta&gt;<\/code>/);
+});

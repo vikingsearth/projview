@@ -87,8 +87,20 @@ md.core.ruler.push('heading_anchors', (state) => {
   }
 });
 
+// Raw HTML is allowed in markdown, but not the tags that act on the page
+// itself: <meta http-equiv=refresh> navigates the viewer away, <base> re-points
+// every link, <link> pulls in stylesheets or prefetches. The CSP stops script;
+// this stops those. Looped, so a tag split around another (<me<meta>ta ...>)
+// can't reassemble. Code spans and blocks are already escaped, so untouched.
+const PAGE_TAGS = /<\/?(?:meta|base|link)\b[^>]*>?/gi;
+function stripPageTags(html) {
+  let prev;
+  do { prev = html; html = html.replace(PAGE_TAGS, ''); } while (html !== prev);
+  return html;
+}
+
 export function renderMarkdown(content) {
-  return md.render(content);
+  return stripPageTags(md.render(content));
 }
 
 // A standalone .mmd file is one whole diagram.
