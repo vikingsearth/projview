@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import chokidar from 'chokidar';
 
 import { buildTree, isHiddenPath, isIgnoredDir, isPreviewable } from './walk.js';
-import { renderFile, renderSource } from './render.js';
+import { renderFile, renderSource, renderBinary } from './render.js';
+import { readText } from './text.js';
 import { buildIndex, updateFile, removeFile, search, indexedSource } from './search.js';
 import { createStore, gitOrOsUser, isPersistent, VERSION_LIMIT } from './store.js';
 import { codeLang } from '../public/codetypes.js';
@@ -152,11 +153,12 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         return;
       }
       try {
-        const content = await fsp.readFile(abs, 'utf8');
+        const content = await readText(abs);   // null: binary
         try { await store.recordEvent({ type: 'view', file: rel }); } catch { /* usage is best-effort */ }
         const ext = path.extname(abs).toLowerCase();
         const raw = url.searchParams.get('view') === 'raw';   // md / mmd source instead of the render
-        sendJson(res, { path: rel, ext, html: raw ? renderSource(ext, content) : renderFile(ext, content) });
+        const html = content === null ? renderBinary() : raw ? renderSource(ext, content) : renderFile(ext, content);
+        sendJson(res, { path: rel, ext, html });
       } catch {
         sendJson(res, { error: 'not found' }, 404);
       }
