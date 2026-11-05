@@ -36,6 +36,21 @@ test('isPreviewable skips minified bundles', () => {
   assert.equal(isPreviewable('admin.js'), true);
 });
 
+test('the minified skip is code-only - a one-line .min.json still pretty-prints', () => {
+  for (const f of ['schema.min.json', 'values.min.yaml', 'notes.min.md']) assert.equal(isPreviewable(f), true, f);
+});
+
+test('isPreviewable with code off keeps docs + data, drops code', () => {
+  assert.equal(isPreviewable('app.js', { code: false }), false);
+  assert.equal(isPreviewable('a.md', { code: false }), true);
+  assert.equal(isPreviewable('a.json', { code: false }), true);
+});
+
+test('isIgnoredDir skips code ecosystems\' dependency + build dirs', () => {
+  for (const d of ['venv', 'site-packages', 'obj', 'target', 'Pods', 'bower_components']) assert.equal(isIgnoredDir(d), true, d);
+  assert.equal(isIgnoredDir('bin'), false);   // node CLIs keep their source there
+});
+
 test('isPreviewable skips lockfiles', () => {
   assert.equal(isPreviewable('package-lock.json'), false);
   assert.equal(isPreviewable('sub/pnpm-lock.yaml'), false);

@@ -2,17 +2,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CODE_LANGS } from '../public/codetypes.js';
 
-// Directories we never descend into - noise or huge.
+// Directories we never descend into - noise or huge. Includes the dependency /
+// build dirs of code ecosystems (python venv, .NET obj, cargo / maven target,
+// CocoaPods), which would otherwise flood the tree with someone else's source.
 const IGNORED_DIRS = new Set([
   'node_modules', 'dist', 'build', 'out', 'coverage',
-  '.cache', '.turbo', 'vendor', '.venv', '__pycache__'
+  '.cache', '.turbo', 'vendor', '.venv', '__pycache__',
+  'venv', 'site-packages', 'obj', 'target', 'Pods', 'bower_components'
 ]);
 
-export const PREVIEWABLE_EXTS = new Set(['.md', '.mmd', '.json', '.yml', '.yaml', ...Object.keys(CODE_LANGS)]);
+// Docs + data types; code types (CODE_LANGS) are previewable too, unless turned off.
+export const PREVIEWABLE_EXTS = new Set(['.md', '.mmd', '.json', '.yml', '.yaml']);
 
 // Previewable by extension but machine-generated noise - huge, never read.
 const IGNORED_FILES = new Set(['package-lock.json', 'pnpm-lock.yaml']);
-// Minified bundles - one enormous line, unreadable as source.
+// Minified code bundles - one enormous line, unreadable as source. Code only:
+// a one-line .min.json is exactly what the JSON view pretty-prints.
 const MINIFIED = /\.min\.[^.]+$/i;
 
 // True if a path segment should stop the walk (ignored name or any dot-dir).
@@ -26,10 +31,13 @@ export function isHiddenPath(relPath) {
   return relPath.split(/[\\/]/).slice(0, -1).some(isIgnoredDir);
 }
 
-export function isPreviewable(filePath) {
+// `code: false` leaves code files out (an exposed host serves docs + data only).
+export function isPreviewable(filePath, { code = true } = {}) {
   const name = path.basename(filePath);
-  if (IGNORED_FILES.has(name.toLowerCase()) || MINIFIED.test(name)) return false;
-  return PREVIEWABLE_EXTS.has(path.extname(filePath).toLowerCase());
+  if (IGNORED_FILES.has(name.toLowerCase())) return false;
+  const ext = path.extname(name).toLowerCase();
+  if (Object.hasOwn(CODE_LANGS, ext)) return code && !MINIFIED.test(name);
+  return PREVIEWABLE_EXTS.has(ext);
 }
 
 // Dirs first, then files, each alphabetical (case-insensitive).
@@ -40,7 +48,7 @@ function byNameDirsFirst(a, b) {
 
 // Recursively build a tree of only the dirs that (transitively) contain
 // previewable files. Returns the root's children array.
-export function buildTree(root) {
+export function buildTree(root, opts) {
   function walk(absDir) {
     let entries;
     try {
@@ -56,7 +64,7 @@ export function buildTree(root) {
         if (isIgnoredDir(entry.name)) continue;
         const children = walk(abs);
         if (children.length) nodes.push({ name: entry.name, path: rel, type: 'dir', children });
-      } else if (entry.isFile() && isPreviewable(entry.name)) {
+      } else if (entry.isFile() && isPreviewable(entry.name, opts)) {
         nodes.push({ name: entry.name, path: rel, type: 'file', ext: path.extname(entry.name).toLowerCase() });
       }
     }
