@@ -404,3 +404,89 @@ test('dot-dirs and known dotfiles are listed and shown locally, and live-reload'
     assert.ok(hit, 'a change inside a dot-dir reaches the index');
   }, { port: 41940 });
 });
+
+/* ---------- security hardening (v1.3.1) ---------- */
+
+// raw request with a chosen Host / content type (fetch can't forge Host)
+function rawReq(port, { method = 'GET', path: p = '/', host = `127.0.0.1:${port}`, type, body } = {}) {
+  return new Promise((resolve, reject) => {
+    const headers = { host };
+    if (type) headers['content-type'] = type;
+    if (body !== undefined) headers['content-length'] = Buffer.byteLength(body);
+    const req = http.request({ port, host: '127.0.0.1', method, path: p, headers }, (res) => {
+      let out = '';
+      res.on('data', (c) => { out += c; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: out }));
+    });
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
+test('the page ships a CSP that allows no inline script', async () => {
+  await withRoot({ 'a.md': '# a\n' }, async ({ port }) => {
+    const res = await rawReq(port);
+    assert.match(res.headers['content-security-policy'], /script-src 'self'/);
+    assert.doesNotMatch(res.headers['content-security-policy'], /script-src[^;]*unsafe-inline/);
+    assert.doesNotMatch(res.body, /<script>/);   // every script is a file
+  }, { port: 41950 });
+});
+
+test('a local bind answers local host names only - reads too (DNS rebinding)', async () => {
+  await withRoot({ 'a.md': '# a\n', 'app.js': 'secret()\n' }, async ({ port }) => {
+    for (const p of ['/api/file?p=a.md', '/api/source?p=app.js', '/api/tree', '/api/search?q=secret', '/api/comments'])
+      assert.equal((await rawReq(port, { path: p, host: `evil.example:${port}` })).status, 403, p);
+    const post = await rawReq(port, { method: 'POST', path: '/api/comments', host: `evil.example:${port}`, type: 'application/json', body: '{"file":"a.md","body":"x"}' });
+    assert.equal(post.status, 403);
+    assert.equal((await rawReq(port, { path: '/api/file?p=a.md', host: `localhost:${port}` })).status, 200);
+  }, { port: 41960 });
+});
+
+test('comment writes need a JSON body of the right shape - and a bad one never crashes the server', async () => {
+  await withRoot({ 'a.md': '# a\n' }, async ({ port }) => {
+    const post = (body, type = 'application/json') => rawReq(port, { method: 'POST', path: '/api/comments', type, body: JSON.stringify(body) });
+    assert.equal((await post({ file: 'a.md', body: 'x' }, 'text/plain')).status, 400);   // a cross-site form / no-cors fetch
+    assert.equal((await post({ file: { x: 1 }, body: 'x' })).status, 400);
+    assert.equal((await post({ file: 'a.md', body: { x: 1 } })).status, 400);
+    assert.equal((await post({ file: 'nope.txt', body: 'x' })).status, 400);
+    assert.equal((await post({ file: 'a.md', body: 'x', anchor: 'str' })).status, 400);
+    assert.equal((await post({ file: 'a.md', body: 'fine' })).status, 201);
+    assert.equal((await rawReq(port, { path: '/api/tree' })).status, 200);   // still up
+  }, { port: 41970 });
+});
+
+test('secret and noise dirs are skipped whatever their case', async () => {
+  await withRoot({ '.config/GH/hosts.yml': 'token: x\n', '.Docker/config.json': '{"auths":{}}' }, async ({ port }) => {
+    for (const p of ['.config/GH/hosts.yml', '.Docker/config.json'])
+      assert.equal((await fetch(`http://127.0.0.1:${port}/api/source?p=${encodeURIComponent(p)}`)).status, 400, p);
+  }, { port: 41980 });
+});
+
+test('a symlink is held to its target\'s rules: no .env, and no code or dot-dirs on an exposed host', async () => {
+  await withRoot({ '.env': 'API_KEY=x\n', 'app.js': 'x()\n', 'ok.md': '# ok\n' }, async ({ root, port }) => {
+    symlinkSync('.env', path.join(root, 'leak.md'));
+    symlinkSync('app.js', path.join(root, 'code.md'));
+    const status = async (p) => (await fetch(`http://127.0.0.1:${port}/api/file?p=${p}`)).status;
+    assert.equal(await status('leak.md'), 400);
+    assert.equal(await status('code.md'), 400);
+    assert.equal(await status('ok.md'), 200);
+  }, { port: 41990, host: '0.0.0.0' });
+});
+
+test('an exposed host neither previews, records usage nor shows it', async () => {
+  await withRoot({ 'a.md': '# a\n' }, async ({ port }) => {
+    const base = `http://127.0.0.1:${port}`;
+    const prev = await fetch(`${base}/api/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: 'x.md', content: '# hi' }) });
+    assert.equal(prev.status, 403);
+    await fetch(`${base}/api/search?q=a`);
+    assert.equal((await fetch(`${base}/api/usage`)).status, 403);
+  }, { port: 42000, host: '0.0.0.0' });
+});
+
+test('the editor reads UTF-16 files decoded, and refuses binary ones', async () => {
+  const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('# héllo\n', 'utf16le')]);
+  await withRoot({ 'u.md': utf16, 'b.md': Buffer.from([0x23, 0x00, 0x01]) }, async ({ port }) => {
+    assert.equal((await jget(`http://127.0.0.1:${port}/api/source?p=u.md`)).content, '# héllo\n');
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/source?p=b.md`)).status, 415);
+  }, { port: 42010 });
+});
