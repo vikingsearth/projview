@@ -99,3 +99,10 @@ test('known extensionless dotfiles are code; secret ones are not listed', () => 
   for (const f of ['.env', '.npmrc', '.netrc', 'constructor']) assert.equal(isPreviewable(f), false, f);
   assert.equal(isPreviewable('.gitignore', { code: false }), false);
 });
+
+test('a home-dir root skips toolchain homes, extension caches and secret config', () => {
+  for (const p of ['.nvm/x/README.md', '.cargo/registry/a.rs', '.local/share/a.md', '.vscode/extensions/x/package.json',
+    '.claude/plugins/cache/x/SKILL.md', '.config/gh/hosts.yml']) assert.equal(isHiddenPath(p), true, p);
+  for (const p of ['.vscode/settings.json', '.config/projview/notes.md', '.claude/skills/x/SKILL.md']) assert.equal(isHiddenPath(p), false, p);
+  assert.equal(isPreviewable('.credentials.json'), false);
+});
