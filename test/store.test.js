@@ -203,3 +203,17 @@ test('superlite keeps versions out of the per-event index file', async () => {
   await s.close();
   assert.equal(fs.existsSync(s.versionsFile), false);   // ephemeral: cleaned up with the rest
 });
+
+test('superlite keeps the index in its own jsonl file, out of the per-event file', async () => {
+  const root = '/tmp/projview-test-superlite-entries';
+  const a = createStore({ kind: 'superlite', persist: true }, root);
+  await a.save([{ path: 'a.js', name: 'a.js', ext: '.js', mtime: 1, content: 'INDEXED-TEXT' }]);
+  await a.recordEvent({ type: 'view', file: 'a.js' });
+  assert.doesNotMatch(fs.readFileSync(a.file, 'utf8'), /INDEXED-TEXT/);
+  assert.match(fs.readFileSync(a.entriesFile, 'utf8'), /INDEXED-TEXT/);
+  await a.close();
+  const b = createStore({ kind: 'superlite', persist: true }, root);
+  assert.equal((await b.load()).entries[0].content, 'INDEXED-TEXT');
+  await b.close();
+  for (const f of [b.file, b.versionsFile, b.entriesFile]) fs.rmSync(f || '', { force: true });
+});

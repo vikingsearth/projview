@@ -231,13 +231,28 @@ function memoryStore() {
 function superliteStore(root, persist) {
   const file = fileFor(root, persist, 'json');
   const versionsFile = file.replace(/\.json$/, '.versions.json');   // big, so written only when versions change
+  // the index (every file's text - hundreds of MB in a code repo) lives in its
+  // own file, so a view or search event doesn't rewrite it. One JSON line per
+  // entry: a single JSON.stringify of it all can pass V8's max string length.
+  const entriesFile = file.replace(/\.json$/, '.entries.jsonl');
   const entries = new Map();   // path -> entry
   let loaded = false;
   const flush = () => fsp.writeFile(file, JSON.stringify({
     builtAt: Date.now(),
-    entries: [...entries.values()],
     comments: [...docs.comments.values()],
     events: docs.events
+  }));
+  let entriesWrite = Promise.resolve();   // one write at a time - two would interleave
+  const flushEntries = () => (entriesWrite = entriesWrite.then(async () => {
+    const fh = await fsp.open(entriesFile, 'w');
+    try {
+      let chunk = '';
+      for (const e of entries.values()) {
+        chunk += JSON.stringify(e) + '\n';
+        if (chunk.length > 1_000_000) { await fh.write(chunk); chunk = ''; }
+      }
+      if (chunk) await fh.write(chunk);
+    } finally { await fh.close(); }
   }));
   const flushVersions = () => fsp.writeFile(versionsFile, JSON.stringify(docs.versions));
   const docs = inMemoryDocs(() => (loaded ? flush() : Promise.resolve()), () => (loaded ? flushVersions() : Promise.resolve()));
@@ -245,10 +260,15 @@ function superliteStore(root, persist) {
     if (loaded) return;
     try {
       const d = JSON.parse(await fsp.readFile(file, 'utf8'));
-      for (const e of d.entries || []) entries.set(e.path, e);
+      for (const e of d.entries || []) entries.set(e.path, e);   // files written before the split
       for (const c of d.comments || []) docs.comments.set(c.id, c);
       for (const ev of d.events || []) docs.events.push(ev);
     } catch { /* fresh */ }
+    try {
+      for (const line of (await fsp.readFile(entriesFile, 'utf8')).split('\n')) {
+        if (line) { const e = JSON.parse(line); entries.set(e.path, e); }
+      }
+    } catch { /* not indexed yet */ }
     try {
       for (const v of JSON.parse(await fsp.readFile(versionsFile, 'utf8'))) docs.versions.push(v);
     } catch { /* no history yet */ }
@@ -258,10 +278,11 @@ function superliteStore(root, persist) {
     kind: 'superlite',
     file,
     versionsFile,
+    entriesFile,
     async load() { await ensure(); return entries.size ? { entries: [...entries.values()] } : null; },
-    async save(es) { await ensure(); entries.clear(); for (const e of es) entries.set(e.path, e); await flush(); },
-    async update(entry) { await ensure(); entries.set(entry.path, entry); await flush(); },
-    async remove(p) { await ensure(); entries.delete(p); await flush(); },
+    async save(es) { await ensure(); entries.clear(); for (const e of es) entries.set(e.path, e); await flushEntries(); },
+    async update(entry) { await ensure(); entries.set(entry.path, entry); await flushEntries(); },
+    async remove(p) { await ensure(); entries.delete(p); await flushEntries(); },
     async addComment(c) { await ensure(); return docs.addComment(c); },
     async listComments(f) { await ensure(); return docs.listComments(f); },
     async updateComment(id, patch) { await ensure(); return docs.updateComment(id, patch); },
@@ -273,7 +294,8 @@ function superliteStore(root, persist) {
     async getVersion(id) { await ensure(); return docs.getVersion(id); },
     async close({ keep } = {}) {
       if (!persist && !keep) {
-        for (const f of [file, versionsFile]) { try { await fsp.unlink(f); } catch { /* gone */ } }
+        await entriesWrite;
+        for (const f of [file, versionsFile, entriesFile]) { try { await fsp.unlink(f); } catch { /* gone */ } }
       }
     },
     describe() { return `superlite/json (${persist ? 'persisted' : 'ephemeral'}) ${file}`; }
