@@ -187,7 +187,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     if (pathname === '/api/search') {
       const q = url.searchParams.get('q') || '';
       const results = search(q);
-      if (q.trim()) await record({ type: 'search', query: q.trim(), count: results.files.length + results.content.length });
+      if (q.trim()) record({ type: 'search', query: q.trim(), count: results.files.length + results.content.length });
       sendJson(res, results);
       return;
     }
@@ -202,7 +202,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       }
       try {
         const content = await readText(abs);   // null: binary
-        await record({ type: 'view', file: rel });
+        record({ type: 'view', file: rel });   // not awaited: usage never holds up a read
         const ext = path.extname(abs).toLowerCase();
         const raw = url.searchParams.get('view') === 'raw';   // md / mmd source instead of the render
         const html = content === null ? renderBinary() : raw ? renderSource(ext, content) : renderFile(ext, content, path.basename(abs));
