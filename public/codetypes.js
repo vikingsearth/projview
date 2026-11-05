@@ -8,7 +8,7 @@ export const CODE_LANGS = {
   '.ts': 'typescript', '.mts': 'typescript', '.cts': 'typescript', '.tsx': 'typescript',
   '.html': 'xml', '.htm': 'xml', '.xml': 'xml', '.svg': 'xml', '.vue': 'xml', '.csproj': 'xml',
   '.css': 'css', '.scss': 'scss', '.less': 'less',
-  '.py': 'python', '.rb': 'ruby', '.php': 'php', '.pl': 'perl', '.lua': 'lua', '.r': 'r',
+  '.py': 'python', '.rb': 'ruby', '.php': 'php-template', '.pl': 'perl', '.lua': 'lua', '.r': 'r',
   '.java': 'java', '.kt': 'kotlin', '.scala': 'scala', '.go': 'go', '.rs': 'rust',
   '.c': 'c', '.h': 'c', '.cpp': 'cpp', '.cc': 'cpp', '.hpp': 'cpp',
   '.swift': 'swift', '.dart': 'dart',
