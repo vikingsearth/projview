@@ -271,10 +271,13 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       sendJson(res, { path: rel, limit: VERSION_LIMIT, versions: await store.listVersions(rel) });
       return;
     }
+    // ?render=1 adds the version rendered like its file, for the history pane -
+    // server-side, so an exposed host (no /api/preview) can show history too
     if (pathname.startsWith('/api/versions/')) {
       const v = await store.getVersion(decodeURIComponent(pathname.slice('/api/versions/'.length)));
-      if (!v) { sendJson(res, { error: 'not found' }, 404); return; }
-      sendJson(res, v);
+      if (!v || !(await editablePath(v.file))) { sendJson(res, { error: 'not found' }, 404); return; }
+      if (url.searchParams.get('render') !== '1') { sendJson(res, v); return; }
+      sendJson(res, { ...v, html: renderFile(path.extname(v.file).toLowerCase(), v.content, path.basename(v.file)) });
       return;
     }
 
