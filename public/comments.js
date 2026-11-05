@@ -375,15 +375,17 @@ function updateBadge() {
   badge.hidden = open === 0;
 }
 
+// Returned as html (it goes into innerHTML), so the quoted text is escaped -
+// a quote taken from an .html file's source is text, never markup.
 function anchorLabel(a, quoteOverride) {
   if (!a) return 'file';
   if (a.type === 'file') return 'whole file';
   if (a.type === 'heading') {
     const el = document.getElementById(a.id);
-    return '§ ' + (quoteOverride || (el ? el.textContent : a.id));
+    return '§ ' + esc(quoteOverride || (el ? el.textContent : a.id));
   }
   const q = (quoteOverride || a.exact || '').replace(/\s+/g, ' ').trim();
-  return '“' + (q.length > 60 ? q.slice(0, 60) + '…' : q) + '”';
+  return '“' + esc(q.length > 60 ? q.slice(0, 60) + '…' : q) + '”';
 }
 
 function ago(ts) {
