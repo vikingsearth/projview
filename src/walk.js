@@ -48,17 +48,31 @@ const MINIFIED = /\.min\.[^.]+$/i;
 // Names compare lowercased (the sets are lowercase): on a case-insensitive
 // filesystem (macOS, Windows) .config/GH and .Docker are the same dirs as
 // .config/gh and .docker, and must be skipped the same.
-function ignoredAt(segs, i, { hidden = true } = {}) {
+// `root` (the served dir) gives the first segment its parent - so a root at
+// ~/.config still skips gh/ - and a root inside a secret dir (~/.ssh, ~/.aws/sso)
+// shows nothing at all.
+function ignoredAt(segs, i, { hidden = true, root } = {}) {
   const name = segs[i].toLowerCase();
   if (IGNORED_DIRS.has(name) || SECRET_DIRS.has(name)) return true;
   if (!hidden && name.startsWith('.')) return true;
-  const parent = i > 0 ? segs[i - 1].toLowerCase() : '';
+  const parent = i > 0 ? segs[i - 1].toLowerCase() : rootContext(root).parent;
   return Object.hasOwn(IGNORED_UNDER, parent) && IGNORED_UNDER[parent].has(name);
+}
+
+const rootContexts = new Map();
+function rootContext(root) {
+  if (!root) return { parent: '', secret: false };
+  if (!rootContexts.has(root)) {
+    const segs = path.resolve(root).split(/[\\/]/).filter(Boolean).map((s) => s.toLowerCase());
+    rootContexts.set(root, { parent: segs.at(-1) || '', secret: segs.some((s) => SECRET_DIRS.has(s)) });
+  }
+  return rootContexts.get(root);
 }
 
 // True if any segment of a root-relative path is one the walk skips (the
 // watcher's filter - it sees dirs and files alike).
 export function isIgnoredPath(relPath, opts) {
+  if (rootContext(opts?.root).secret) return true;
   const segs = relPath.split(/[\\/]/);
   return segs.some((_, i) => ignoredAt(segs, i, opts));
 }
@@ -66,14 +80,17 @@ export function isIgnoredPath(relPath, opts) {
 // True if any directory in a root-relative file path is one the walk skips -
 // so a file hidden from the tree can't be fetched by typing its path either.
 export function isHiddenPath(relPath, opts) {
+  if (rootContext(opts?.root).secret) return true;
   const segs = relPath.split(/[\\/]/).slice(0, -1);
   return segs.some((_, i) => ignoredAt(segs, i, opts));
 }
 
-// `code: false` leaves code files out (an exposed host serves docs + data only).
-export function isPreviewable(filePath, { code = true } = {}) {
+// `code: false` leaves code files out (an exposed host serves docs + data only);
+// `hidden: false` leaves dotfiles out too (.secrets.yml in a plain dir).
+export function isPreviewable(filePath, { code = true, hidden = true } = {}) {
   const name = path.basename(filePath);
   if (IGNORED_FILES.has(name.toLowerCase())) return false;
+  if (!hidden && name.startsWith('.')) return false;
   if (Object.hasOwn(CODE_NAMES, name)) return code;   // .gitignore, .editorconfig, ...
   const ext = path.extname(name).toLowerCase();
   if (Object.hasOwn(CODE_LANGS, ext)) return code && !MINIFIED.test(name);
@@ -89,6 +106,8 @@ function byNameDirsFirst(a, b) {
 // Recursively build a tree of only the dirs that (transitively) contain
 // previewable files. Returns the root's children array.
 export function buildTree(root, opts) {
+  opts = { root, ...opts };
+  if (rootContext(root).secret) return [];
   function walk(absDir) {
     let entries;
     try {

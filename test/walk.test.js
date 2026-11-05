@@ -106,3 +106,15 @@ test('a home-dir root skips toolchain homes, extension caches and secret config'
   for (const p of ['.vscode/settings.json', '.config/projview/notes.md', '.claude/skills/x/SKILL.md']) assert.equal(isHiddenPath(p), false, p);
   assert.equal(isPreviewable('.credentials.json'), false);
 });
+
+test('the root\'s own place counts: ~/.config still skips gh/, and a root inside a secret dir shows nothing', () => {
+  assert.equal(isHiddenPath('gh/hosts.yml', { root: '/home/u/.config' }), true);
+  assert.equal(isHiddenPath('projview/notes.md', { root: '/home/u/.config' }), false);
+  assert.equal(isHiddenPath('notes.md', { root: '/home/u/.ssh' }), true);
+  assert.equal(isHiddenPath('cache/x.json', { root: '/home/u/.aws/sso' }), true);
+});
+
+test('with hidden off, dotfiles in plain dirs are left out too', () => {
+  assert.equal(isPreviewable('docs/.secrets.yml', { hidden: false }), false);
+  assert.equal(isPreviewable('docs/.secrets.yml'), true);
+});
