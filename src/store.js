@@ -237,23 +237,32 @@ function superliteStore(root, persist) {
   const entriesFile = file.replace(/\.json$/, '.entries.jsonl');
   const entries = new Map();   // path -> entry
   let loaded = false;
-  // Every write to this store's files goes through one queue, and lands by
-  // writing a temp file then renaming it over the old one: two flushes never
-  // interleave, and a crash mid-write leaves the previous file whole - a
-  // half-written JSON file used to read back as "no comments at all".
-  let writes = Promise.resolve();
-  const queued = (fn) => (writes = writes.then(() => fn(), () => fn()));
+  // Each of this store's files has its own write queue, and a write lands by
+  // writing a temp file then renaming it over the old one: two flushes of a
+  // file never interleave, and a crash mid-write leaves the previous file whole
+  // - a half-written JSON file used to read back as "no comments at all". One
+  // queue per file, so a view event never waits behind a full index rewrite.
+  const chains = new Map();   // file -> its latest queued write
+  const queued = (target, fn) => {
+    const next = (chains.get(target) || Promise.resolve()).then(() => fn(), () => fn());
+    chains.set(target, next);
+    return next;
+  };
+  const settled = () => Promise.all([...chains.values()].map((w) => w.catch(() => {})));
   const atomic = async (target, writeTo) => {
     const tmp = `${target}.${process.pid}.tmp`;
     await writeTo(tmp);
     await fsp.rename(tmp, target);
   };
-  const flush = () => queued(() => atomic(file, (tmp) => fsp.writeFile(tmp, JSON.stringify({
+  const flush = () => queued(file, () => atomic(file, (tmp) => fsp.writeFile(tmp, JSON.stringify({
     builtAt: Date.now(),
     comments: [...docs.comments.values()],
     events: docs.events
   }))));
-  const flushEntries = () => queued(() => atomic(entriesFile, async (tmp) => {
+  // an index rewrite that hasn't started yet already covers any later change -
+  // it writes the Map as it is when it runs - so changes in a burst share one
+  let entriesPending = null;
+  const flushEntries = () => (entriesPending ??= queued(entriesFile, () => { entriesPending = null; return atomic(entriesFile, async (tmp) => {
     const fh = await fsp.open(tmp, 'w');
     try {
       let chunk = '';
@@ -263,11 +272,14 @@ function superliteStore(root, persist) {
       }
       if (chunk) await fh.write(chunk);
     } finally { await fh.close(); }
-  }));
-  const flushVersions = () => queued(() => atomic(versionsFile, (tmp) => fsp.writeFile(tmp, JSON.stringify(docs.versions))));
+  }); }));
+  const flushVersions = () => queued(versionsFile, () => atomic(versionsFile, (tmp) => fsp.writeFile(tmp, JSON.stringify(docs.versions))));
   const docs = inMemoryDocs(() => (loaded ? flush() : Promise.resolve()), () => (loaded ? flushVersions() : Promise.resolve()));
-  const ensure = async () => {
-    if (loaded) return;
+  // memoised: concurrent first calls share one load instead of each reading
+  // the files and appending their comments, events and versions again
+  let loading = null;
+  const ensure = () => (loading ??= load());
+  const load = async () => {
     try {
       const d = JSON.parse(await fsp.readFile(file, 'utf8'));
       for (const e of d.entries || []) entries.set(e.path, e);   // files written before the split
@@ -303,8 +315,8 @@ function superliteStore(root, persist) {
     async listVersions(f) { await ensure(); return docs.listVersions(f); },
     async getVersion(id) { await ensure(); return docs.getVersion(id); },
     async close({ keep } = {}) {
+      await settled();   // the last change lands before exit, persisted or not
       if (!persist && !keep) {
-        await writes.catch(() => {});   // let in-flight writes land before removing the files
         for (const f of [file, versionsFile, entriesFile]) { try { await fsp.unlink(f); } catch { /* gone */ } }
       }
     },
