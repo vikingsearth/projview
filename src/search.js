@@ -116,6 +116,17 @@ export function fuzzyScore(text, q) {
   return score;
 }
 
+// The first `max` lines of a file that hold any of `terms`.
+function snippetsFor(item, terms, max) {
+  const lines = item.content.split(/\r?\n/);
+  const snippets = [];
+  for (let i = 0; i < lines.length && snippets.length < max; i++) {
+    const ll = lines[i].toLowerCase();
+    if (terms.some((t) => ll.includes(t))) snippets.push({ line: i + 1, text: lines[i].trim().slice(0, 160) });
+  }
+  return snippets;
+}
+
 export function search(q, { maxFiles = 8, maxContent = 10, snippetsPerFile = 3 } = {}) {
   const query = (q || '').trim();
   if (!query) return { query: '', files: [], content: [] };
@@ -133,27 +144,20 @@ export function search(q, { maxFiles = 8, maxContent = 10, snippetsPerFile = 3 }
   files.sort((a, b) => b.score - a.score);
 
   // --- contents: every term must appear (AND), ranked by frequency ---
+  // Counted on the lowercased text (terms hold no whitespace, so never span a
+  // line); snippets are cut only for the files that make the cut.
   const content = [];
   for (const item of index.values()) {
     if (!terms.every((t) => item.lower.includes(t))) continue;
-    const lines = item.content.split(/\r?\n/);
-    const snippets = [];
     let freq = 0;
-    for (let i = 0; i < lines.length; i++) {
-      const ll = lines[i].toLowerCase();
-      let lineHas = false;
-      for (const t of terms) {
-        let idx = 0;
-        while ((idx = ll.indexOf(t, idx)) !== -1) { freq++; idx += t.length; lineHas = true; }
-      }
-      if (lineHas && snippets.length < snippetsPerFile) {
-        snippets.push({ line: i + 1, text: lines[i].trim().slice(0, 160) });
-      }
+    for (const t of terms) {
+      for (let idx = item.lower.indexOf(t); idx !== -1; idx = item.lower.indexOf(t, idx + t.length)) freq++;
     }
     const nameBonus = item.name.toLowerCase().includes(ql) ? 6 : 0;
-    content.push({ path: item.path, name: item.name, score: freq + nameBonus, count: freq, snippets });
+    content.push({ path: item.path, name: item.name, score: freq + nameBonus, count: freq, item });
   }
   content.sort((a, b) => b.score - a.score);
+  const top = content.slice(0, maxContent).map(({ item, ...hit }) => ({ ...hit, snippets: snippetsFor(item, terms, snippetsPerFile) }));
 
-  return { query, files: files.slice(0, maxFiles), content: content.slice(0, maxContent) };
+  return { query, files: files.slice(0, maxFiles), content: top };
 }
