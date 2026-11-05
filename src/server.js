@@ -85,6 +85,9 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const allowWrites = isLoopbackHost(host);   // comments are read-only on an exposed host
   const denyWrite = (res) => sendJson(res, { error: 'read-only: projview is exposed on a non-loopback host' }, 403);
   const localAuthor = gitOrOsUser();          // default author for UI-created comments
+  // code is shown on a local bind only: an exposed host serves docs + data, so
+  // scripts and source (and the credentials they tend to hold) stay off the network
+  const walkOpts = { code: allowWrites };
 
   // A client path that may be read (or, behind the write guards, saved): inside
   // root, a previewable type, and not under a dir the tree hides. Else null.
@@ -93,12 +96,15 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const realRoot = fs.realpathSync(root);
   const editablePath = async (rel) => {
     const abs = resolveInRoot(root, rel || '');
-    if (!abs || !isPreviewable(abs) || isHiddenPath(path.relative(root, abs))) return null;
+    if (!abs || !isPreviewable(abs, walkOpts) || isHiddenPath(path.relative(root, abs))) return null;
     let real;
     try { real = await fsp.realpath(abs); } catch { return abs; }   // missing: the caller answers 404
     if (!resolveInRoot(realRoot, path.relative(realRoot, real))) return null;
     return abs;
   };
+  // Code files are view-only: judged on the file a save would really write, so a
+  // symlink named notes.md can't reach app.js. A missing file falls back to its name.
+  const isViewOnly = async (abs) => !!(codeLang(abs) || codeLang(await fsp.realpath(abs).catch(() => abs)));
 
   function broadcast(event, payload) {
     const frame = `event: ${event}\ndata: ${JSON.stringify(payload || {})}\n\n`;
@@ -124,7 +130,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
 
     // --- file tree ---
     if (pathname === '/api/tree') {
-      sendJson(res, { root: path.basename(root) || root, tree: buildTree(root), version: VERSION, writable: allowWrites, persistent: isPersistent(storeConfig) });
+      sendJson(res, { root: path.basename(root) || root, tree: buildTree(root, walkOpts), version: VERSION, writable: allowWrites, persistent: isPersistent(storeConfig) });
       return;
     }
 
@@ -178,7 +184,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         if (!body || typeof body.path !== 'string' || typeof body.content !== 'string') { sendJson(res, { error: 'path and content are required' }, 400); return; }
         const abs = await editablePath(body.path);
         if (!abs) { sendJson(res, { error: 'invalid path' }, 400); return; }
-        if (codeLang(abs)) { sendJson(res, { error: 'read-only: code files are view-only' }, 403); return; }
+        if (await isViewOnly(abs)) { sendJson(res, { error: 'read-only: code files are view-only' }, 403); return; }
         let stat;
         try { stat = await fsp.stat(abs); } catch { sendJson(res, { error: 'not found' }, 404); return; }
         // optimistic concurrency: refuse to clobber a file that changed since it was opened
@@ -293,13 +299,13 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   // here so startup stays fast - tests (and anything that must not miss an
   // early change) wait on it via the returned `watching`.
   const watching = new Promise((resolve) => watcher.once('ready', resolve));
-  const indexInfo = await buildIndex(root, store);   // load-or-build the search index
+  const indexInfo = await buildIndex(root, store, walkOpts);   // load-or-build the search index
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
   // keep text a change replaced (or a delete removed) as a version - any source
   // counts: projview's editor, an IDE, git, agents
   // (not code files: they're view-only, so there's nothing to restore to)
   const keepVersion = async (file, before) => {
-    if (codeLang(file) || !before || Buffer.byteLength(before.content) > VERSION_MAX_BYTES) return;
+    if (!before || Buffer.byteLength(before.content) > VERSION_MAX_BYTES || await isViewOnly(path.join(root, file))) return;
     try { await store.addVersion({ file, content: before.content, mtime: before.mtime }); } catch { /* versions are best-effort */ }
   };
   // `quiet`: a re-check - stay silent unless the text really moved on

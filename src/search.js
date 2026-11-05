@@ -36,14 +36,15 @@ export function indexedSource(rel) {
 // Build the index for `root`. With a persisted store, loads the cached entries
 // and only re-reads files whose mtime changed (warm start); else reads them all.
 // Returns the store + a small summary, so the caller can close it on shutdown.
-export async function buildIndex(root, store) {
+// `opts` go to the walk (e.g. { code: false } on an exposed host).
+export async function buildIndex(root, store, opts) {
   theRoot = root;
   index.clear();
   store = store || createStore({ kind: 'memory' }, root);
 
   const cached = await store.load();
   const cachedByPath = new Map((cached?.entries || []).map((e) => [e.path, e]));
-  const files = flattenFiles(buildTree(root));
+  const files = flattenFiles(buildTree(root, opts));
   let reindexed = 0;
 
   const entries = await Promise.all(files.map(async (f) => {
