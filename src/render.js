@@ -203,6 +203,9 @@ function renderCodeView(code, lang, note = '', lineAttrs = null) {
 
 const notice = (msg) => `<div class="data-notice">${escapeHtml(msg)}</div>\n`;
 
+// A file whose bytes aren't text (e.g. a .ts that is an MPEG-TS video segment).
+export const renderBinary = () => notice('binary file - not shown');
+
 // The text a JSON file is displayed as: re-indented when valid, as written when
 // not (e.g. JSONC). Shared with the search index so snippet line numbers match
 // the viewer's. A leading BOM is dropped - JSON.parse rejects it.
