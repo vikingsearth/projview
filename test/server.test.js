@@ -356,3 +356,23 @@ test('code files are view-only: shown as source, saves refused, no versions kept
     assert.deepEqual((await jget(`${base}/api/versions?p=app.js`)).versions, []);   // ...but keeps no version
   }, { port: 41900 });
 });
+
+test('a symlink with a doc name can\'t save through to a code file', async () => {
+  await withRoot({ 'app.js': 'let a = 1;\n' }, async ({ root, port }) => {
+    symlinkSync('app.js', path.join(root, 'alias.md'));
+    assert.equal((await rawPut(port, { path: 'alias.md', content: 'pwned', force: true })).status, 403);
+    assert.equal(readFileSync(path.join(root, 'app.js'), 'utf8'), 'let a = 1;\n');
+  }, { port: 41910 });
+});
+
+test('an exposed host serves docs + data but no code', async () => {
+  await withRoot({ 'doc.md': '# hi\n', 'cfg.json': '{}', 'deploy.sh': 'export TOKEN=secret\n' }, async ({ port }) => {
+    const base = `http://127.0.0.1:${port}`;
+    const names = (await jget(`${base}/api/tree`)).tree.map((n) => n.name);
+    assert.deepEqual(names.sort(), ['cfg.json', 'doc.md']);
+    assert.equal((await fetch(`${base}/api/file?p=deploy.sh`)).status, 400);
+    assert.equal((await fetch(`${base}/api/source?p=deploy.sh`)).status, 400);
+    assert.equal((await jget(`${base}/api/search?q=secret`)).content.length, 0);
+    assert.equal((await fetch(`${base}/api/file?p=cfg.json`)).status, 200);
+  }, { port: 41920, host: '0.0.0.0' });
+});
