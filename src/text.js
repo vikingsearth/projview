@@ -13,3 +13,13 @@ export async function readText(abs) {
   if (buf.subarray(0, SNIFF_BYTES).includes(0)) return null;
   return buf.toString('utf8');
 }
+
+// Bytes for `text` in the encoding the file at `abs` already has (its BOM), so
+// saving a UTF-16 file from the editor keeps it UTF-16. UTF-8 otherwise.
+export async function encodeLike(abs, text) {
+  let head = Buffer.alloc(0);
+  try { const fh = await fsp.open(abs, 'r'); try { ({ buffer: head } = await fh.read(Buffer.alloc(2), 0, 2, 0)); } finally { await fh.close(); } } catch { /* new file */ }
+  if (head[0] === 0xff && head[1] === 0xfe) return Buffer.concat([head, Buffer.from(text, 'utf16le')]);
+  if (head[0] === 0xfe && head[1] === 0xff) return Buffer.concat([head, Buffer.from(text, 'utf16le').swap16()]);
+  return Buffer.from(text, 'utf8');
+}
