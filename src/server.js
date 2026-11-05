@@ -67,7 +67,7 @@ function resolveInRoot(root, relPath) {
 // Comment writes are allowed only when bound to loopback. A non-loopback bind
 // (e.g. 0.0.0.0 on the launchpad / in Docker) is treated as exposed -> read-only.
 export function isLoopbackHost(host) {
-  return ['127.0.0.1', '::1', 'localhost', ''].includes(host);
+  return ['127.0.0.1', '::1', 'localhost'].includes(host);
 }
 
 // The Host header of a request that may write. A DNS-rebinding page reaches a
@@ -125,9 +125,25 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     for (const res of sseClients) res.write(frame);
   }
 
-  const server = http.createServer(async (req, res) => {
+  // usage is recorded on a local bind only: on an exposed host it would grow
+  // without bound and show one visitor's searches to the next
+  const record = async (event) => {
+    if (!allowWrites) return;
+    try { await store.recordEvent(event); } catch { /* usage is best-effort */ }
+  };
+
+  const handle = async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const pathname = url.pathname;
+
+    // a DNS-rebound page reaches a loopback port under its own domain and is
+    // then same-origin: on a local bind every route - reads too - answers local
+    // names only. (An exposed host is reached by its real name, and serves no
+    // code, dot-dirs or writes.)
+    if (allowWrites && !isLoopbackHostHeader(req.headers.host)) {
+      sendJson(res, { error: 'projview answers local host names only' }, 403);
+      return;
+    }
 
     // --- live-reload stream ---
     if (pathname === '/api/events') {
@@ -296,6 +312,15 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     }
 
     res.writeHead(404).end('Not found');
+  };
+  // one bad request (a store error, a body of the wrong shape) answers 500 -
+  // it never takes the whole server down
+  const server = http.createServer((req, res) => {
+    handle(req, res).catch((err) => {
+      console.error(`projview: ${req.method} ${req.url} failed - ${err?.message || err}`);
+      if (!res.headersSent) sendJson(res, { error: 'internal error' }, 500);
+      else res.end();
+    });
   });
 
   // --- file watcher -> live reload ---
