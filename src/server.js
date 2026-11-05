@@ -102,7 +102,8 @@ export function isLoopbackHostHeader(hostHeader) {
 // treats that as a 400) - a cross-site form or no-cors fetch can only send
 // text/plain or form types, so requiring JSON keeps other sites from writing.
 function readBody(req, limit = 1_000_000) {
-  if (!/^application\/json\b/i.test(req.headers['content-type'] || '')) { req.resume(); return Promise.resolve(null); }
+  const type = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();   // the media type, minus charset
+  if (type !== 'application/json') { req.resume(); return Promise.resolve(null); }
   return new Promise((resolve) => {
     let data = '';
     let size = 0;
@@ -359,6 +360,8 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   // it never takes the whole server down
   const server = http.createServer((req, res) => {
     handle(req, res).catch((err) => {
+      // a malformed %-escape in a path or id is the client's mistake, not ours
+      if (err instanceof URIError) { if (!res.headersSent) sendJson(res, { error: 'malformed URL encoding' }, 400); return; }
       console.error(`projview: ${req.method} ${req.url} failed - ${err?.message || err}`);
       if (!res.headersSent) sendJson(res, { error: 'internal error' }, 500);
       else res.end();

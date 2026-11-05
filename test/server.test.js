@@ -526,3 +526,14 @@ test('every response says nosniff + no-referrer; an exposed host serves no dotfi
     assert.equal((await jget(`http://127.0.0.1:${port}/api/search?q=tok`)).content.length, 0);
   }, { port: 42040, host: '0.0.0.0' });
 });
+
+test('writes need exactly application/json; malformed %-escapes answer 400', async () => {
+  await withRoot({ 'a.md': '# a\n' }, async ({ port }) => {
+    const post = (type) => rawReq(port, { method: 'POST', path: '/api/comments', type, body: '{"file":"a.md","body":"x"}' });
+    assert.equal((await post('application/json-patch+json')).status, 400);
+    assert.equal((await post('application/json, text/plain')).status, 400);
+    assert.equal((await post('Application/JSON; charset=utf-8')).status, 201);
+    assert.equal((await rawReq(port, { path: '/api/versions/%E0' })).status, 400);
+    assert.equal((await rawReq(port, { method: 'DELETE', path: '/api/comments/%E0%A4%A' })).status, 400);
+  }, { port: 42050 });
+});
