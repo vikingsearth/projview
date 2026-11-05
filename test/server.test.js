@@ -376,3 +376,15 @@ test('an exposed host serves docs + data but no code', async () => {
     assert.equal((await fetch(`${base}/api/file?p=cfg.json`)).status, 200);
   }, { port: 41920, host: '0.0.0.0' });
 });
+
+test('binary files show a notice; UTF-16 files are decoded and searchable', async () => {
+  const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('SELECT name FROM players;\r\n', 'utf16le')]);
+  await withRoot({ 'seg.ts': Buffer.from([0x47, 0x40, 0x00, 0x10, 0x00]), 'q.sql': utf16 }, async ({ port }) => {
+    const base = `http://127.0.0.1:${port}`;
+    assert.match((await jget(`${base}/api/file?p=seg.ts`)).html, /binary file - not shown/);
+    const { html } = await jget(`${base}/api/file?p=q.sql`);
+    assert.match(html, /hljs-keyword">SELECT/);
+    assert.doesNotMatch(html, /\u0000/);
+    assert.equal((await jget(`${base}/api/search?q=players`)).content[0]?.path, 'q.sql');
+  }, { port: 41930 });
+});

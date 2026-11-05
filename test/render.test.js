@@ -137,3 +137,23 @@ test('renderFile routes code extensions to the code view', () => {
   for (const ext of ['.cs', '.css', '.html', '.js', '.ts', '.py']) assert.match(renderFile(ext, 'x'), /code-view/, ext);
   assert.match(renderFile('.TS', 'x'), /data-lang="typescript"/);
 });
+
+test('code view lines carry L<n> ids for #L line links', () => {
+  const html = renderCode('a.js', 'one\ntwo\n');
+  assert.match(html, /id="L1"/);
+  assert.match(html, /id="L2"/);
+});
+
+test('raw markdown heading lines keep their heading id, not an L<n> id', () => {
+  const html = renderSource('.md', '# Title\n\ntext\n');
+  assert.doesNotMatch(html, /id="L1"/);
+  assert.match(html, /id="L3"/);
+});
+
+test('a tab counts as 4 columns for indent guides', () => {
+  assert.match(renderCode('a.go', 'func f() {\n\treturn\n}\n'), /style="--i:4"/);
+});
+
+test('php files highlight as php-template (html with php islands)', () => {
+  assert.match(renderFile('.php', '<p><?php echo $x; ?></p>'), /data-lang="php-template"/);
+});
