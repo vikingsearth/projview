@@ -54,13 +54,20 @@ function sendFile(res, filePath, type) {
 // Why a new comment's body is unacceptable, or null. Strings only (a stored
 // object would break the drawer for that file) and bounded sizes.
 const COMMENT_MAX = 20_000;
+const ANCHOR_TYPES = new Set(['text', 'heading', 'file']);
+const ANCHOR_FIELDS = new Set(['exact', 'prefix', 'suffix', 'section', 'id']);
 function commentError(b) {
   if (!b) return 'a JSON body is required';
   if (typeof b.file !== 'string' || !b.file) return 'file must be a path';
   if (typeof b.body !== 'string' || !b.body.trim() || b.body.length > COMMENT_MAX) return `body must be 1-${COMMENT_MAX} characters`;
   if (b.author !== undefined && (typeof b.author !== 'string' || b.author.length > 200)) return 'author must be a short string';
-  if (b.anchor != null && (typeof b.anchor !== 'object' || Array.isArray(b.anchor) || typeof b.anchor.type !== 'string')) return 'anchor must be an object with a type';
-  if (b.anchor != null && JSON.stringify(b.anchor).length > 4_000) return 'anchor is too large';
+  if (b.anchor != null) {
+    const a = b.anchor;
+    if (typeof a !== 'object' || Array.isArray(a) || !ANCHOR_TYPES.has(a.type)) return 'anchor must be a text, heading or file anchor';
+    // the drawer calls string methods on these, so a number or object breaks it for the file
+    for (const k of Object.keys(a)) if (k !== 'type' && (!ANCHOR_FIELDS.has(k) || (a[k] !== null && typeof a[k] !== 'string'))) return `anchor.${k} must be a known string field`;
+    if (JSON.stringify(a).length > 4_000) return 'anchor is too large';
+  }
   return null;
 }
 
@@ -288,7 +295,8 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         const body = await readBody(req);
         const err = commentError(body);
         if (err) { sendJson(res, { error: err }, 400); return; }
-        if (!(await editablePath(body.file))) { sendJson(res, { error: 'not a file projview shows' }, 400); return; }
+        const target = await editablePath(body.file);
+        if (!target || !(await fsp.stat(target).then((s) => s.isFile(), () => false))) { sendJson(res, { error: 'not a file projview shows' }, 400); return; }
         const c = await store.addComment({ file: body.file, body: body.body, anchor: body.anchor ?? null, author: body.author || localAuthor });
         broadcast('comments', { file: c.file });
         sendJson(res, c, 201);

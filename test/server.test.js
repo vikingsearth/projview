@@ -503,3 +503,16 @@ test('history renders versions server-side, so an exposed host can show them', a
     assert.equal((await fetch(`${base}/api/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"path":"x.md","content":"x"}' })).status, 403);
   }, { port: 42020, host: '0.0.0.0' });
 });
+
+test('a comment needs an existing file and an anchor of known string fields', async () => {
+  await withRoot({ 'a.md': '# a\n' }, async ({ root, port }) => {
+    symlinkSync('gone.md', path.join(root, 'dangling.md'));
+    const post = (body) => rawReq(port, { method: 'POST', path: '/api/comments', type: 'application/json', body: JSON.stringify(body) });
+    assert.equal((await post({ file: 'nope.md', body: 'x' })).status, 400);
+    assert.equal((await post({ file: 'dangling.md', body: 'x' })).status, 400);
+    assert.equal((await post({ file: 'a.md', body: 'x', anchor: { type: 'text', exact: 5 } })).status, 400);
+    assert.equal((await post({ file: 'a.md', body: 'x', anchor: { type: 'heading', id: { x: 1 } } })).status, 400);
+    assert.equal((await post({ file: 'a.md', body: 'x', anchor: { type: 'weird' } })).status, 400);
+    assert.equal((await post({ file: 'a.md', body: 'x', anchor: { type: 'text', exact: 'a', prefix: '', suffix: '', section: null } })).status, 201);   // no heading above
+  }, { port: 42030 });
+});
