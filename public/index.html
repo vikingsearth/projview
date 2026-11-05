@@ -7,15 +7,9 @@
   <meta name="color-scheme" content="dark light" />
   <meta name="darkreader-lock" />
   <!-- resolve the saved theme before first paint (theme.js owns it after load;
-       the 'pv-theme' key and fallback must match theme.js) -->
-  <script>
-    (function () {
-      var p = 'system';
-      try { p = localStorage.getItem('pv-theme') || 'system'; } catch (e) {}
-      var light = p === 'light' || (p !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches);
-      document.documentElement.dataset.theme = light ? 'light' : 'dark';
-    })();
-  </script>
+       the 'pv-theme' key and fallback must match theme.js). A file, not inline:
+       the page's CSP allows no inline script -->
+  <script src="/theme-boot.js"></script>
   <title>projview</title>
   <link rel="stylesheet" href="/vendor/hljs.css" />
   <link rel="stylesheet" href="/style.css" />
