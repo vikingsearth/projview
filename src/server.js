@@ -124,7 +124,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   // code and dot-dirs are shown on a local bind only: an exposed host serves docs
   // + data, so scripts, source and tool config (and the credentials they tend to
   // hold) stay off the network
-  const walkOpts = { code: allowWrites, hidden: allowWrites };
+  const walkOpts = { code: allowWrites, hidden: allowWrites, root };
 
   // A client path that may be read (or, behind the write guards, saved): inside
   // root, a previewable type, and not under a dir the tree hides. Else null.
@@ -161,6 +161,8 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const handle = async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const pathname = url.pathname;
+    res.setHeader('X-Content-Type-Options', 'nosniff');   // a served file is never sniffed into html
+    res.setHeader('Referrer-Policy', 'no-referrer');      // a README's external image never learns the path
 
     // a DNS-rebound page reaches a loopback port under its own domain and is
     // then same-origin: on a local bind every route - reads too - answers local
