@@ -28,13 +28,25 @@ const MIME = {
   '.json': 'application/json; charset=utf-8'
 };
 
+// The page renders markdown with raw HTML allowed, so a file can carry markup.
+// No inline script runs and nothing loads from elsewhere: an <img onerror> or a
+// javascript: link in a README stays inert instead of reaching /api/source.
+// Inline styles stay allowed - the code view and mermaid set them.
+const CSP = [
+  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:", "connect-src 'self'", "object-src 'none'", "frame-src 'none'",
+  "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'"
+].join('; ');
+
 function sendFile(res, filePath, type) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404).end('Not found');
       return;
     }
-    res.writeHead(200, { 'Content-Type': type || MIME[path.extname(filePath)] || 'application/octet-stream' });
+    const headers = { 'Content-Type': type || MIME[path.extname(filePath)] || 'application/octet-stream' };
+    if (path.extname(filePath) === '.html') headers['Content-Security-Policy'] = CSP;
+    res.writeHead(200, headers);
     res.end(data);
   });
 }
