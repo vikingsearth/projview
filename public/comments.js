@@ -242,7 +242,10 @@ function captureTextAnchor() {
   if (!sel || sel.isCollapsed) return null;
   const range = sel.getRangeAt(0);
   if (!contentEl.contains(range.commonAncestorContainer)) return null;
-  const exact = sel.toString();
+  // the range's own text, not sel.toString(): the latter adds a newline between
+  // block boxes (each code-view line is one), which the flat text re-anchoring
+  // searches doesn't have - so a multi-line quote was orphaned on save
+  const exact = range.toString();
   const flat = contentEl.textContent;
   const pre = document.createRange();
   pre.setStart(contentEl, 0);
