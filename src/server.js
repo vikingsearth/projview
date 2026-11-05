@@ -254,7 +254,8 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       const abs = await editablePath(rel);
       if (!abs) { sendJson(res, { error: 'invalid path' }, 400); return; }
       try {
-        const [content, stat] = await Promise.all([fsp.readFile(abs, 'utf8'), fsp.stat(abs)]);
+        const [content, stat] = await Promise.all([readText(abs), fsp.stat(abs)]);   // decoded like /api/file
+        if (content === null) { sendJson(res, { error: 'binary file - not editable' }, 415); return; }
         sendJson(res, { path: rel, content, mtime: stat.mtimeMs });
       } catch {
         sendJson(res, { error: 'not found' }, 404);
