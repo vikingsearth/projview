@@ -174,6 +174,7 @@ export const LINE_LIMIT = 50_000;
 // A code view with line numbers and indent guides. Each line carries its
 // indent depth (--i) so CSS can draw one guide per level (--step columns apart).
 // lineAttrs: optional Map of line index -> extra attributes for that line's span.
+// Other lines get an L<n> id, so app.js#L12 (GitHub's line-link form) lands there.
 function renderCodeView(code, lang, note = '', lineAttrs = null) {
   let rawLines = code.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n');
   if (rawLines.length > LINE_LIMIT) {
@@ -197,7 +198,7 @@ function renderCodeView(code, lang, note = '', lineAttrs = null) {
   }
 
   const body = lines
-    .map((l, i) => `<span class="cl" style="--i:${indents[i]}"${lineAttrs?.get(i) || ''}><span class="lc">${l}</span></span>`)
+    .map((l, i) => `<span class="cl" style="--i:${indents[i]}"${lineAttrs?.get(i) || ` id="L${i + 1}"`}><span class="lc">${l}</span></span>`)
     .join('');
   return `${note}<pre class="hljs code-view" data-lang="${lang}" style="--step:${step}"><code>${body}</code></pre>\n`;
 }
