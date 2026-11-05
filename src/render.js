@@ -45,7 +45,10 @@ function slugify(text) {
     .replace(/^-+|-+$/g, '') || 'section';
 }
 
-const EXPLICIT_ID = /\s*\{#([\w-]+)\}\s*$/;
+// No leading \s*: it made a heading of many spaces quadratic (seconds of CPU per
+// request). The whitespace before {#id} is trimmed after the match instead.
+const EXPLICIT_ID = /\{#([\w-]+)\}\s*$/;
+const stripExplicitId = (text) => text.replace(EXPLICIT_ID, '').trimEnd();
 
 // Give every heading a stable id so #fragment links can target it.
 // Honors an explicit trailing {#id}, otherwise slugs the heading text.
@@ -61,12 +64,12 @@ md.core.ruler.push('heading_anchors', (state) => {
     const explicit = inline.content.match(EXPLICIT_ID);
     if (explicit) {
       id = explicit[1];
-      inline.content = inline.content.replace(EXPLICIT_ID, '');
+      inline.content = stripExplicitId(inline.content);
       // strip the visible {#id} from the rendered text token too
       const kids = inline.children || [];
       for (let j = kids.length - 1; j >= 0; j--) {
         if (kids[j].type === 'text' && EXPLICIT_ID.test(kids[j].content)) {
-          kids[j].content = kids[j].content.replace(EXPLICIT_ID, '');
+          kids[j].content = stripExplicitId(kids[j].content);
           break;
         }
       }
