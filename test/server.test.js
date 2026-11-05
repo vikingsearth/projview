@@ -490,3 +490,16 @@ test('the editor reads UTF-16 files decoded, and refuses binary ones', async () 
     assert.equal((await fetch(`http://127.0.0.1:${port}/api/source?p=b.md`)).status, 415);
   }, { port: 42010 });
 });
+
+test('history renders versions server-side, so an exposed host can show them', async () => {
+  await withRoot({ 'doc.md': '# one\n' }, async ({ root, port, watching }) => {
+    const base = `http://127.0.0.1:${port}`;
+    await watching;
+    writeFileSync(path.join(root, 'doc.md'), '# two\n');
+    const list = await until(async () => { const r = await jget(`${base}/api/versions?p=doc.md`); return r.versions.length ? r : null; });
+    assert.ok(list, 'a version appears');
+    const v = await jget(`${base}/api/versions/${list.versions[0].id}?render=1`);
+    assert.match(v.html, /<h1[^>]*>one<\/h1>/);
+    assert.equal((await fetch(`${base}/api/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"path":"x.md","content":"x"}' })).status, 403);
+  }, { port: 42020, host: '0.0.0.0' });
+});
