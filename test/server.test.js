@@ -516,3 +516,13 @@ test('a comment needs an existing file and an anchor of known string fields', as
     assert.equal((await post({ file: 'a.md', body: 'x', anchor: { type: 'text', exact: 'a', prefix: '', suffix: '', section: null } })).status, 201);   // no heading above
   }, { port: 42030 });
 });
+
+test('every response says nosniff + no-referrer; an exposed host serves no dotfiles', async () => {
+  await withRoot({ 'docs/.secrets.yml': 'tok: x\n', 'ok.md': '# ok\n' }, async ({ port }) => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/file?p=ok.md`);
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/file?p=docs/.secrets.yml`)).status, 400);
+    assert.equal((await jget(`http://127.0.0.1:${port}/api/search?q=tok`)).content.length, 0);
+  }, { port: 42040, host: '0.0.0.0' });
+});
