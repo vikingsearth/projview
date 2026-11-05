@@ -90,12 +90,10 @@ async function select(id) {
     if (id === 'current') {
       ({ html } = await (await fetch(`/api/file?p=${encodeURIComponent(p)}`)).json());
     } else {
-      version = await (await fetch(`/api/versions/${encodeURIComponent(id)}`)).json();
-      ({ html } = await (await fetch('/api/preview', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path: p, content: version.content })
-      })).json());
+      const res = await fetch(`/api/versions/${encodeURIComponent(id)}?render=1`);
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      version = await res.json();
+      ({ html } = version);
     }
   } catch {
     toast('couldn’t load that version');
