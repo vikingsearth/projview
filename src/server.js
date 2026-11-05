@@ -129,7 +129,10 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     if (!abs || !isPreviewable(abs, walkOpts) || isHiddenPath(path.relative(root, abs), walkOpts)) return null;
     let real;
     try { real = await fsp.realpath(abs); } catch { return abs; }   // missing: the caller answers 404
-    if (!resolveInRoot(realRoot, path.relative(realRoot, real))) return null;
+    // the target must pass the same rules as the name: a notes.md symlink to
+    // .env, a secret dir or (on an exposed host) code is refused like the target
+    const realRel = path.relative(realRoot, real);
+    if (!resolveInRoot(realRoot, realRel) || !isPreviewable(real, walkOpts) || isHiddenPath(realRel, walkOpts)) return null;
     return abs;
   };
   // Code files are view-only: judged on the file a save would really write, so a
