@@ -217,3 +217,14 @@ test('superlite keeps the index in its own jsonl file, out of the per-event file
   await b.close();
   for (const f of [b.file, b.versionsFile, b.entriesFile]) fs.rmSync(f || '', { force: true });
 });
+
+test('superlite never leaves a half-written file when flushes overlap', async () => {
+  for (let t = 0; t < 5; t++) {
+    const s = createStore({ kind: 'superlite', persist: false }, `/tmp/projview-test-superlite-race-${t}`);
+    await s.addComment({ file: 'a.md', body: 'keep me', anchor: null, author: 'x' });
+    await Promise.all(Array.from({ length: 50 }, (_, i) => s.recordEvent({ type: 'view', file: `f${i}.md` })));
+    const d = JSON.parse(fs.readFileSync(s.file, 'utf8'));   // throws if two writes interleaved
+    assert.equal(d.comments.length, 1);
+    await s.close();
+  }
+});
