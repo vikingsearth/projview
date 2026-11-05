@@ -3,6 +3,10 @@ import path from 'node:path';
 import { buildTree } from './walk.js';
 import { jsonDisplayText } from './render.js';
 import { createStore } from './store.js';
+import { readText } from './text.js';
+
+// Files read at once while indexing - past the open-files limit, reads fail (EMFILE).
+const READ_CONCURRENCY = 64;
 
 // In-memory index: relPath -> { path, name, content, lower }. Search always runs
 // over this; a Store (optional, opt-in) just persists/warm-starts the entries.
@@ -47,7 +51,7 @@ export async function buildIndex(root, store, opts) {
   const files = flattenFiles(buildTree(root, opts));
   let reindexed = 0;
 
-  const entries = await Promise.all(files.map(async (f) => {
+  const entries = await mapLimit(files, READ_CONCURRENCY, async (f) => {
     const abs = path.join(root, f.path);
     let mtime = 0;
     try { mtime = (await fsp.stat(abs)).mtimeMs; } catch { /* gone */ }
@@ -57,14 +61,25 @@ export async function buildIndex(root, store, opts) {
       content = prev.content;                       // unchanged -> reuse cached
     } else {
       reindexed++;
-      try { content = await fsp.readFile(abs, 'utf8'); } catch { content = ''; }
+      // a failed read is indexed empty, with mtime 0 so the next start retries it
+      // rather than reusing '' as if it were the file's text
+      try { content = (await readText(abs)) ?? ''; } catch { content = ''; mtime = 0; }
     }
     return { path: f.path, name: f.name, ext: f.ext, mtime, content };
-  }));
+  });
 
   for (const e of entries) addToIndex(e.path, e.content, e.mtime);
   await store.save(entries);
   return { store, total: entries.length, reindexed, warm: !!cached };
+}
+
+// Promise.all over `items`, but with at most `limit` of `fn` running at once.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => { while (next < items.length) { const i = next++; out[i] = await fn(items[i]); } };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }
 
 // Re-read one file into the in-memory index; return its store entry (or null).
@@ -72,7 +87,8 @@ export async function updateFile(rel) {
   if (!theRoot) return null;
   const abs = path.join(theRoot, rel);
   try {
-    const [content, stat] = await Promise.all([fsp.readFile(abs, 'utf8'), fsp.stat(abs)]);
+    const [text, stat] = await Promise.all([readText(abs), fsp.stat(abs)]);
+    const content = text ?? '';   // binary: nothing to search
     addToIndex(rel, content, stat.mtimeMs);
     return { path: rel, name: rel.split('/').pop(), ext: path.extname(rel).toLowerCase(), mtime: stat.mtimeMs, content };
   } catch { return null; }
