@@ -51,6 +51,19 @@ function sendFile(res, filePath, type) {
   });
 }
 
+// Why a new comment's body is unacceptable, or null. Strings only (a stored
+// object would break the drawer for that file) and bounded sizes.
+const COMMENT_MAX = 20_000;
+function commentError(b) {
+  if (!b) return 'a JSON body is required';
+  if (typeof b.file !== 'string' || !b.file) return 'file must be a path';
+  if (typeof b.body !== 'string' || !b.body.trim() || b.body.length > COMMENT_MAX) return `body must be 1-${COMMENT_MAX} characters`;
+  if (b.author !== undefined && (typeof b.author !== 'string' || b.author.length > 200)) return 'author must be a short string';
+  if (b.anchor != null && (typeof b.anchor !== 'object' || Array.isArray(b.anchor) || typeof b.anchor.type !== 'string')) return 'anchor must be an object with a type';
+  if (b.anchor != null && JSON.stringify(b.anchor).length > 4_000) return 'anchor is too large';
+  return null;
+}
+
 function sendJson(res, obj, status = 200) {
   res.writeHead(status, { 'Content-Type': MIME['.json'] });
   res.end(JSON.stringify(obj));
@@ -78,8 +91,11 @@ export function isLoopbackHostHeader(hostHeader) {
 }
 
 // Read + JSON-parse a request body, capped to guard against abuse.
-// Resolves null on parse error or oversize (handler treats that as a 400).
+// Resolves null on parse error, oversize, or a non-JSON content type (handler
+// treats that as a 400) - a cross-site form or no-cors fetch can only send
+// text/plain or form types, so requiring JSON keeps other sites from writing.
 function readBody(req, limit = 1_000_000) {
+  if (!/^application\/json\b/i.test(req.headers['content-type'] || '')) { req.resume(); return Promise.resolve(null); }
   return new Promise((resolve) => {
     let data = '';
     let size = 0;
@@ -260,8 +276,10 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       if (req.method === 'POST') {
         if (!allowWrites) return denyWrite(res);
         const body = await readBody(req);
-        if (!body || !body.file || !body.body) { sendJson(res, { error: 'file and body are required' }, 400); return; }
-        const c = await store.addComment({ file: body.file, body: body.body, anchor: body.anchor, author: body.author || localAuthor });
+        const err = commentError(body);
+        if (err) { sendJson(res, { error: err }, 400); return; }
+        if (!(await editablePath(body.file))) { sendJson(res, { error: 'not a file projview shows' }, 400); return; }
+        const c = await store.addComment({ file: body.file, body: body.body, anchor: body.anchor ?? null, author: body.author || localAuthor });
         broadcast('comments', { file: c.file });
         sendJson(res, c, 201);
         return;
@@ -279,7 +297,10 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         if (!body) { sendJson(res, { error: 'invalid body' }, 400); return; }
         const patch = {};
         if (typeof body.resolved === 'boolean') patch.resolved = body.resolved;
-        if (typeof body.body === 'string') patch.body = body.body;
+        if (typeof body.body === 'string') {
+          if (!body.body.trim() || body.body.length > COMMENT_MAX) { sendJson(res, { error: `body must be 1-${COMMENT_MAX} characters` }, 400); return; }
+          patch.body = body.body;
+        }
         const c = await store.updateComment(id, patch);
         if (!c) { sendJson(res, { error: 'not found' }, 404); return; }
         broadcast('comments', { file: c.file });
