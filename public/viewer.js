@@ -61,7 +61,20 @@ export async function openFile(p, fragment, highlight) {
   else if (!found) viewerEl.scrollTop = 0;
 }
 
+// #L12 / #L12-L20: GitHub-style line links into a code view - scroll + highlight.
+function scrollToLines(frag) {
+  const m = /^L(\d+)(?:-L?(\d+))?$/.exec(frag);
+  const first = m && document.getElementById(`L${m[1]}`);
+  if (!first) return false;
+  const last = Number(m[2] || m[1]);
+  for (const el of contentEl.querySelectorAll('.cl.hl')) el.classList.remove('hl');
+  for (let n = Number(m[1]); n <= last; n++) document.getElementById(`L${n}`)?.classList.add('hl');
+  first.scrollIntoView({ block: 'center' });
+  return true;
+}
+
 export function scrollToFragment(frag) {
+  if (scrollToLines(frag)) return;
   // headings are rendered with a "pv-" id prefix (collision-proof); try that
   // first, then fall back to a raw id and an already-prefixed value (TOC).
   const el = document.getElementById(`pv-${frag}`) || document.getElementById(frag);
