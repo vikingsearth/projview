@@ -228,3 +228,20 @@ test('superlite never leaves a half-written file when flushes overlap', async ()
     await s.close();
   }
 });
+
+test('superlite: concurrent first calls load the file once, and close lands the last change', async () => {
+  const root = '/tmp/projview-test-superlite-ensure';
+  const a = createStore({ kind: 'superlite', persist: true }, root);
+  await a.addVersion({ file: 'x.md', content: 'v1', mtime: 1 });
+  await a.recordEvent({ type: 'view', file: 'x.md' });
+  await a.close();
+  const b = createStore({ kind: 'superlite', persist: true }, root);
+  await Promise.all([b.listVersions('x.md'), b.usageStats(), b.listComments()]);
+  assert.equal((await b.listVersions('x.md')).length, 1);
+  await b.recordEvent({ type: 'view', file: 'y.md' });
+  await b.close();
+  const c = createStore({ kind: 'superlite', persist: true }, root);
+  assert.equal((await c.usageStats()).byType.view, 2);   // one each - neither lost at close nor doubled by a racing load
+  await c.close();
+  for (const f of [c.file, c.versionsFile, c.entriesFile]) fs.rmSync(f || '', { force: true });
+});
