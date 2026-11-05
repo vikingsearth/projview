@@ -157,3 +157,10 @@ test('a tab counts as 4 columns for indent guides', () => {
 test('php files highlight as php-template (html with php islands)', () => {
   assert.match(renderFile('.php', '<p><?php echo $x; ?></p>'), /data-lang="php-template"/);
 });
+
+test('a heading full of spaces renders fast (no quadratic {#id} match)', () => {
+  const t = Date.now();
+  renderMarkdown('# a' + ' '.repeat(120_000) + 'b');
+  assert.ok(Date.now() - t < 1000, `took ${Date.now() - t}ms`);
+  assert.match(renderMarkdown('## Title   {#custom-id}'), /<h2 id="pv-custom-id">Title<\/h2>/);
+});
