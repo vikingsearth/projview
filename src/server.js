@@ -7,7 +7,7 @@ import chokidar from 'chokidar';
 
 import { buildTree, isHiddenPath, isIgnoredPath, isPreviewable } from './walk.js';
 import { renderFile, renderSource, renderBinary } from './render.js';
-import { readText } from './text.js';
+import { readText, encodeLike } from './text.js';
 import { buildIndex, updateFile, removeFile, search, indexedSource } from './search.js';
 import { createStore, gitOrOsUser, isPersistent, VERSION_LIMIT } from './store.js';
 import { codeLang } from '../public/codetypes.js';
@@ -250,7 +250,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         // optimistic concurrency: refuse to clobber a file that changed since it was opened
         if (!body.force && body.mtime !== stat.mtimeMs) { sendJson(res, { error: 'changed on disk', mtime: stat.mtimeMs }, 409); return; }
         try {
-          await fsp.writeFile(abs, body.content, 'utf8');
+          await fsp.writeFile(abs, await encodeLike(abs, body.content));   // keeps a UTF-16 file UTF-16
           sendJson(res, { path: body.path, mtime: (await fsp.stat(abs)).mtimeMs });
         } catch (err) {
           sendJson(res, { error: `could not save: ${err.code || err.message}` }, 500);
