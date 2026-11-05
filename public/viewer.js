@@ -16,6 +16,21 @@ const contentEl = $('content');
 const viewerEl = $('viewer');
 
 export async function openFile(p, fragment, highlight) {
+  const raw = state.view === 'raw' && hasRawView(p);
+  let res;
+  try {
+    res = await fetch(`/api/file?p=${encodeURIComponent(p)}${raw ? '&view=raw' : ''}`);
+  } catch {
+    res = null;
+  }
+  // 400 = a path the server won't show (a minified bundle, a file under dist/,
+  // code on an exposed host): say so and stay on the current page, rather than
+  // replace it with "can't find" for a file that exists
+  if (res?.status === 400 && state.currentPath && p !== state.currentPath) {
+    location.hash = encodeURIComponent(state.currentPath);
+    toast(`can't preview "${p}" here`);
+    return;
+  }
   // leaving an editor with unsaved changes needs a yes; on no, put the URL back
   if (isEditing() && !confirmLeave()) {
     location.hash = encodeURIComponent(state.currentPath);
@@ -27,13 +42,6 @@ export async function openFile(p, fragment, highlight) {
   revealInTree(p);
   renderBreadcrumb(p);
 
-  const raw = state.view === 'raw' && hasRawView(p);
-  let res;
-  try {
-    res = await fetch(`/api/file?p=${encodeURIComponent(p)}${raw ? '&view=raw' : ''}`);
-  } catch {
-    res = null;
-  }
   if (!res || !res.ok) {
     showNotFound(p);
     return;
