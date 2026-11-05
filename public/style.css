@@ -325,7 +325,7 @@ body {
 .code-view .cl:hover::before { color: var(--overlay); }
 .code-view .lc {
   white-space: pre;
-  tab-size: 2;   /* matches the 2 columns a tab counts as for indent guides */
+  tab-size: 4;   /* matches the 4 columns a tab counts as for indent guides */
   background-image: repeating-linear-gradient(90deg,
     var(--surface2) 0 1px, transparent 1px calc(var(--step) * 1ch));
   background-size: calc(var(--i) * 1ch) 100%;

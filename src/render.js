@@ -147,7 +147,8 @@ function splitHighlightedLines(html) {
   return lines;
 }
 
-const leadingIndent = (line) => line.match(/^[ \t]*/)[0].replace(/\t/g, '  ').length;
+// A tab is 4 columns - the common editor default - here and in the CSS tab-size.
+const leadingIndent = (line) => line.match(/^[ \t]*/)[0].replace(/\t/g, '    ').length;
 
 // The file's indent unit: the most common step between a line and a deeper next
 // line. A mode, not a gcd, so one oddly indented line can't skew it. Default 2.
