@@ -33,10 +33,10 @@ projview /path/to/notes --no-open
 
 | | |
 | --- | --- |
-| tree nav | every `.md` / `.mmd` / `.json` / `.yml` / `.yaml` under the root (skips `node_modules`, `dist`, dot-dirs, lockfiles) |
+| tree nav | every `.md` / `.mmd` / `.json` / `.yml` / `.yaml` and code file under the root, dot-dirs like `.github` / `.vscode` / `.claude` included (skips `node_modules`, `dist`, `.git`, tool caches, credential dirs like `.ssh` / `.aws`, lockfiles) |
 | rendering | markdown + syntax-highlighted code + **mermaid diagrams** (with pan/zoom) |
 | data files | JSON pretty-printed (literals kept exact), YAML shown as written - both with line numbers + indent guides |
-| code files | `.cs` `.js` `.ts` `.py` `.html` `.css` `.go` `.java` `.sql` `.sh` and more - shown as highlighted source, never rendered (an `.html` file is not run) and never editable; minified `*.min.*` bundles are skipped |
+| code files | `.cs` `.js` `.ts` `.py` `.html` `.css` `.go` `.java` `.sql` `.sh` and more - shown as highlighted source, never rendered (an `.html` file is not run) and never editable; minified `*.min.*` bundles are skipped. Dotfiles like `.gitignore` / `.editorconfig` show too; `.env` / `.npmrc` never do. On an exposed host, code and dot-dirs aren't served at all |
 | search | `⌘K` palette - fuzzy filenames + full-text content with line snippets |
 | in-file find | `⌘⇧K` (or `tab` in the palette) searches just the open page; every match is highlighted, `↵` / `⇧↵` step through them, `esc` clears. the browser's own `⌘F` is left alone |
 | live reload | edit a file, the browser updates |

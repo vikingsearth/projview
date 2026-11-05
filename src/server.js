@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chokidar from 'chokidar';
 
-import { buildTree, isHiddenPath, isIgnoredDir, isPreviewable } from './walk.js';
+import { buildTree, isHiddenPath, isIgnoredPath, isPreviewable } from './walk.js';
 import { renderFile, renderSource, renderBinary } from './render.js';
 import { readText } from './text.js';
 import { buildIndex, updateFile, removeFile, search, indexedSource } from './search.js';
@@ -86,9 +86,10 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const allowWrites = isLoopbackHost(host);   // comments are read-only on an exposed host
   const denyWrite = (res) => sendJson(res, { error: 'read-only: projview is exposed on a non-loopback host' }, 403);
   const localAuthor = gitOrOsUser();          // default author for UI-created comments
-  // code is shown on a local bind only: an exposed host serves docs + data, so
-  // scripts and source (and the credentials they tend to hold) stay off the network
-  const walkOpts = { code: allowWrites };
+  // code and dot-dirs are shown on a local bind only: an exposed host serves docs
+  // + data, so scripts, source and tool config (and the credentials they tend to
+  // hold) stay off the network
+  const walkOpts = { code: allowWrites, hidden: allowWrites };
 
   // A client path that may be read (or, behind the write guards, saved): inside
   // root, a previewable type, and not under a dir the tree hides. Else null.
@@ -97,7 +98,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
   const realRoot = fs.realpathSync(root);
   const editablePath = async (rel) => {
     const abs = resolveInRoot(root, rel || '');
-    if (!abs || !isPreviewable(abs, walkOpts) || isHiddenPath(path.relative(root, abs))) return null;
+    if (!abs || !isPreviewable(abs, walkOpts) || isHiddenPath(path.relative(root, abs), walkOpts)) return null;
     let real;
     try { real = await fsp.realpath(abs); } catch { return abs; }   // missing: the caller answers 404
     if (!resolveInRoot(realRoot, path.relative(realRoot, real))) return null;
@@ -157,7 +158,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         try { await store.recordEvent({ type: 'view', file: rel }); } catch { /* usage is best-effort */ }
         const ext = path.extname(abs).toLowerCase();
         const raw = url.searchParams.get('view') === 'raw';   // md / mmd source instead of the render
-        const html = content === null ? renderBinary() : raw ? renderSource(ext, content) : renderFile(ext, content);
+        const html = content === null ? renderBinary() : raw ? renderSource(ext, content) : renderFile(ext, content, path.basename(abs));
         sendJson(res, { path: rel, ext, html });
       } catch {
         sendJson(res, { error: 'not found' }, 404);
@@ -172,7 +173,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
         sendJson(res, { error: 'path and content are required' }, 400);
         return;
       }
-      sendJson(res, { html: renderFile(path.extname(body.path).toLowerCase(), body.content) });
+      sendJson(res, { html: renderFile(path.extname(body.path).toLowerCase(), body.content, path.basename(body.path)) });
       return;
     }
 
@@ -295,7 +296,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     ignoreInitial: true,
     // judged relative to the root: a root that itself sits under a dot-dir
     // (~/.config/..., a worktree in .claude/) is still watched
-    ignored: (p) => path.relative(root, p).split(path.sep).some(isIgnoredDir)
+    ignored: (p) => isIgnoredPath(path.relative(root, p), walkOpts)
   });
   // resolves once the scan is done; changes before then aren't seen. Not awaited
   // here so startup stays fast - tests (and anything that must not miss an

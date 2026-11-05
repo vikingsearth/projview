@@ -93,9 +93,9 @@ test('POST without an author defaults to the git/OS user (not anonymous)', async
   rmSync(db, { force: true });
 });
 
-test('/api/file refuses files under dirs the tree hides (dot-dirs, node_modules)', async () => {
+test('/api/file refuses files under dirs the tree hides (secret / noise dot-dirs, node_modules)', async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'projview-hidden-'));
-  for (const [rel, body] of [['.secret/creds.json', '{"token":"x"}'], ['node_modules/pkg/package.json', '{}'], ['ok.json', '{}']]) {
+  for (const [rel, body] of [['.ssh/creds.json', '{"token":"x"}'], ['.git/x.json', '{}'], ['node_modules/pkg/package.json', '{}'], ['ok.json', '{}'], ['.github/ci.yml', 'on: push\n']]) {
     mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
     writeFileSync(path.join(root, rel), body);
   }
@@ -103,7 +103,9 @@ test('/api/file refuses files under dirs the tree hides (dot-dirs, node_modules)
   const status = async (p) => (await fetch(`http://127.0.0.1:${port}/api/file?p=${encodeURIComponent(p)}`)).status;
   try {
     assert.equal(await status('ok.json'), 200);
-    assert.equal(await status('.secret/creds.json'), 400);
+    assert.equal(await status('.ssh/creds.json'), 400);
+    assert.equal(await status('.git/x.json'), 400);
+    assert.equal(await status('.github/ci.yml'), 200);
     assert.equal(await status('node_modules/pkg/package.json'), 400);
   } finally {
     await close();
@@ -170,8 +172,8 @@ test('PUT /api/source saves when the mtime matches, refuses a stale one, and for
 });
 
 test('PUT /api/source refuses paths outside what the viewer shows', async () => {
-  await withRoot({ 'ok.md': 'x', 'notes.txt': 'x', '.secret/creds.json': '{}' }, async ({ port }) => {
-    for (const p of ['notes.txt', '.secret/creds.json', '../escape.md', 'missing/../../x.md']) {
+  await withRoot({ 'ok.md': 'x', 'notes.txt': 'x', '.ssh/creds.json': '{}' }, async ({ port }) => {
+    for (const p of ['notes.txt', '.ssh/creds.json', '../escape.md', 'missing/../../x.md']) {
       const r = await rawPut(port, { path: p, content: 'pwned', force: true });
       assert.equal(r.status, 400, p);
     }
@@ -366,7 +368,7 @@ test('a symlink with a doc name can\'t save through to a code file', async () =>
 });
 
 test('an exposed host serves docs + data but no code', async () => {
-  await withRoot({ 'doc.md': '# hi\n', 'cfg.json': '{}', 'deploy.sh': 'export TOKEN=secret\n' }, async ({ port }) => {
+  await withRoot({ 'doc.md': '# hi\n', 'cfg.json': '{}', 'deploy.sh': 'export TOKEN=secret\n', '.github/ci.yml': 'on: push\n' }, async ({ port }) => {
     const base = `http://127.0.0.1:${port}`;
     const names = (await jget(`${base}/api/tree`)).tree.map((n) => n.name);
     assert.deepEqual(names.sort(), ['cfg.json', 'doc.md']);
@@ -374,6 +376,7 @@ test('an exposed host serves docs + data but no code', async () => {
     assert.equal((await fetch(`${base}/api/source?p=deploy.sh`)).status, 400);
     assert.equal((await jget(`${base}/api/search?q=secret`)).content.length, 0);
     assert.equal((await fetch(`${base}/api/file?p=cfg.json`)).status, 200);
+    assert.equal((await fetch(`${base}/api/file?p=.github/ci.yml`)).status, 400);   // no dot-dirs either
   }, { port: 41920, host: '0.0.0.0' });
 });
 
@@ -387,4 +390,17 @@ test('binary files show a notice; UTF-16 files are decoded and searchable', asyn
     assert.doesNotMatch(html, /\u0000/);
     assert.equal((await jget(`${base}/api/search?q=players`)).content[0]?.path, 'q.sql');
   }, { port: 41930 });
+});
+
+test('dot-dirs and known dotfiles are listed and shown locally, and live-reload', async () => {
+  await withRoot({ '.github/workflows/ci.yml': 'on: push\n', '.gitignore': 'node_modules\n', '.env': 'TOKEN=x\n' }, async ({ root, port, watching }) => {
+    const base = `http://127.0.0.1:${port}`;
+    const names = (await jget(`${base}/api/tree`)).tree.map((n) => n.name).sort();
+    assert.deepEqual(names, ['.github', '.gitignore']);   // .env never listed
+    assert.match((await jget(`${base}/api/file?p=.gitignore`)).html, /data-lang="plaintext"/);   // code view, not markdown
+    await watching;
+    writeFileSync(path.join(root, '.github/workflows/ci.yml'), 'on: pull_request\n');
+    const hit = await until(async () => (await jget(`${base}/api/search?q=pull_request`)).content.length);
+    assert.ok(hit, 'a change inside a dot-dir reaches the index');
+  }, { port: 41940 });
 });

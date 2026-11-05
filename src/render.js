@@ -261,8 +261,9 @@ function headingLines(content) {
   return attrs;
 }
 
-export function renderFile(ext, content) {
-  if (codeLang(ext)) return renderCode(ext, content);
+// `name` routes extensionless code files (.gitignore) that `ext` alone can't.
+export function renderFile(ext, content, name = ext) {
+  if (codeLang(name)) return renderCode(name, content);
   if (ext === '.mmd') return renderMermaid(content);
   if (ext === '.json') return renderJson(content);
   if (ext === '.yml' || ext === '.yaml') return renderYaml(content);
