@@ -184,7 +184,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     if (pathname === '/api/search') {
       const q = url.searchParams.get('q') || '';
       const results = search(q);
-      if (q.trim()) { try { await store.recordEvent({ type: 'search', query: q.trim(), count: results.files.length + results.content.length }); } catch { /* usage is best-effort */ } }
+      if (q.trim()) await record({ type: 'search', query: q.trim(), count: results.files.length + results.content.length });
       sendJson(res, results);
       return;
     }
@@ -199,7 +199,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
       }
       try {
         const content = await readText(abs);   // null: binary
-        try { await store.recordEvent({ type: 'view', file: rel }); } catch { /* usage is best-effort */ }
+        await record({ type: 'view', file: rel });
         const ext = path.extname(abs).toLowerCase();
         const raw = url.searchParams.get('view') === 'raw';   // md / mmd source instead of the render
         const html = content === null ? renderBinary() : raw ? renderSource(ext, content) : renderFile(ext, content, path.basename(abs));
@@ -211,8 +211,11 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
     }
 
     // --- live preview: render unsaved editor text (never touches disk) ---
+    // the editor's endpoint, so local binds only: on an exposed host it was an
+    // unauthenticated way to make the server render (and block on) any text
     if (pathname === '/api/preview' && req.method === 'POST') {
-      const body = await readBody(req, 10_000_000);
+      if (!allowWrites) return denyWrite(res);
+      const body = await readBody(req, 2_000_000);
       if (!body || typeof body.path !== 'string' || typeof body.content !== 'string' || !isPreviewable(body.path)) {
         sendJson(res, { error: 'path and content are required' }, 400);
         return;
@@ -320,6 +323,7 @@ export async function startServer(root, { port = 4321, host = '127.0.0.1', store
 
     // --- usage stats ---
     if (pathname === '/api/usage') {
+      if (!allowWrites) { sendJson(res, { error: 'usage is local-only' }, 403); return; }
       sendJson(res, await store.usageStats());
       return;
     }
