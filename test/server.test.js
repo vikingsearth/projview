@@ -37,8 +37,8 @@ test('server records view + search events into the store (the usage producer)', 
 /* ---------- comment HTTP endpoints (Phase 3b) ---------- */
 
 test('isLoopbackHost gates writes to local binds', () => {
-  for (const h of ['127.0.0.1', '::1', 'localhost', '']) assert.equal(isLoopbackHost(h), true);
-  for (const h of ['0.0.0.0', '192.168.1.10', '::']) assert.equal(isLoopbackHost(h), false);
+  for (const h of ['127.0.0.1', '::1', 'localhost']) assert.equal(isLoopbackHost(h), true);
+  for (const h of ['0.0.0.0', '192.168.1.10', '::', '']) assert.equal(isLoopbackHost(h), false);   // '' binds every interface
 });
 
 test('comment endpoints: POST/GET/PATCH/DELETE lifecycle over HTTP', async () => {
