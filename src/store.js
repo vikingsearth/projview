@@ -237,14 +237,24 @@ function superliteStore(root, persist) {
   const entriesFile = file.replace(/\.json$/, '.entries.jsonl');
   const entries = new Map();   // path -> entry
   let loaded = false;
-  const flush = () => fsp.writeFile(file, JSON.stringify({
+  // Every write to this store's files goes through one queue, and lands by
+  // writing a temp file then renaming it over the old one: two flushes never
+  // interleave, and a crash mid-write leaves the previous file whole - a
+  // half-written JSON file used to read back as "no comments at all".
+  let writes = Promise.resolve();
+  const queued = (fn) => (writes = writes.then(() => fn(), () => fn()));
+  const atomic = async (target, writeTo) => {
+    const tmp = `${target}.${process.pid}.tmp`;
+    await writeTo(tmp);
+    await fsp.rename(tmp, target);
+  };
+  const flush = () => queued(() => atomic(file, (tmp) => fsp.writeFile(tmp, JSON.stringify({
     builtAt: Date.now(),
     comments: [...docs.comments.values()],
     events: docs.events
-  }));
-  let entriesWrite = Promise.resolve();   // one write at a time - two would interleave
-  const flushEntries = () => (entriesWrite = entriesWrite.then(async () => {
-    const fh = await fsp.open(entriesFile, 'w');
+  }))));
+  const flushEntries = () => queued(() => atomic(entriesFile, async (tmp) => {
+    const fh = await fsp.open(tmp, 'w');
     try {
       let chunk = '';
       for (const e of entries.values()) {
@@ -254,7 +264,7 @@ function superliteStore(root, persist) {
       if (chunk) await fh.write(chunk);
     } finally { await fh.close(); }
   }));
-  const flushVersions = () => fsp.writeFile(versionsFile, JSON.stringify(docs.versions));
+  const flushVersions = () => queued(() => atomic(versionsFile, (tmp) => fsp.writeFile(tmp, JSON.stringify(docs.versions))));
   const docs = inMemoryDocs(() => (loaded ? flush() : Promise.resolve()), () => (loaded ? flushVersions() : Promise.resolve()));
   const ensure = async () => {
     if (loaded) return;
@@ -294,7 +304,7 @@ function superliteStore(root, persist) {
     async getVersion(id) { await ensure(); return docs.getVersion(id); },
     async close({ keep } = {}) {
       if (!persist && !keep) {
-        await entriesWrite;
+        await writes.catch(() => {});   // let in-flight writes land before removing the files
         for (const f of [file, versionsFile, entriesFile]) { try { await fsp.unlink(f); } catch { /* gone */ } }
       }
     },
