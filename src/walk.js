@@ -8,7 +8,7 @@ import { CODE_LANGS, CODE_NAMES } from '../public/codetypes.js';
 const IGNORED_DIRS = new Set([
   'node_modules', 'dist', 'build', 'out', 'coverage',
   '.cache', '.turbo', 'vendor', '.venv', '__pycache__',
-  'venv', 'site-packages', 'obj', 'target', 'Pods', 'bower_components',
+  'venv', 'site-packages', 'obj', 'target', 'pods', 'bower_components',
   // dot-dirs are listed (.github, .vscode, .claude, ...) except for VCS
   // internals, tool caches and build output
   '.git', '.hg', '.svn', '.next', '.nuxt', '.svelte-kit', '.output', '.parcel-cache',
@@ -16,7 +16,7 @@ const IGNORED_DIRS = new Set([
   '.terraform', '.yarn', '.pnpm-store', '.npm', '.idea', '.vs',
   // toolchain homes - thousands of files of someone else's code when the root is ~
   '.nvm', '.rustup', '.cargo', '.m2', '.pyenv', '.rbenv', '.sdkman', '.dotnet',
-  '.nuget', '.deno', '.bun', '.local', '.oh-my-zsh', '.vscode-server', '.Trash'
+  '.nuget', '.deno', '.bun', '.local', '.oh-my-zsh', '.vscode-server', '.trash'
 ]);
 
 // Dirs skipped only under a given parent - noise (extensions, plugin caches,
@@ -45,11 +45,15 @@ const MINIFIED = /\.min\.[^.]+$/i;
 // True if segs[i] of a path is a directory the walk skips: an ignored or
 // secret name, any dot-dir when `hidden` is off (an exposed host), or a name
 // skipped under its parent (.claude/worktrees, .vscode/extensions, ...).
+// Names compare lowercased (the sets are lowercase): on a case-insensitive
+// filesystem (macOS, Windows) .config/GH and .Docker are the same dirs as
+// .config/gh and .docker, and must be skipped the same.
 function ignoredAt(segs, i, { hidden = true } = {}) {
-  const name = segs[i];
+  const name = segs[i].toLowerCase();
   if (IGNORED_DIRS.has(name) || SECRET_DIRS.has(name)) return true;
   if (!hidden && name.startsWith('.')) return true;
-  return i > 0 && Object.hasOwn(IGNORED_UNDER, segs[i - 1]) && IGNORED_UNDER[segs[i - 1]].has(name);
+  const parent = i > 0 ? segs[i - 1].toLowerCase() : '';
+  return Object.hasOwn(IGNORED_UNDER, parent) && IGNORED_UNDER[parent].has(name);
 }
 
 // True if any segment of a root-relative path is one the walk skips (the
