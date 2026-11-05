@@ -17,7 +17,21 @@ export const CODE_LANGS = {
   '.toml': 'ini', '.ini': 'ini'
 };
 
+// Extensionless dotfiles shown as code, by exact name. Not .env / .npmrc /
+// .netrc and the like: those hold secrets, so they stay unlisted.
+export const CODE_NAMES = {
+  '.gitignore': 'plaintext', '.gitattributes': 'plaintext', '.dockerignore': 'plaintext',
+  '.npmignore': 'plaintext', '.nvmrc': 'plaintext', '.editorconfig': 'ini',
+  '.prettierrc': 'json', '.eslintrc': 'json', '.babelrc': 'json'
+};
+
 const extOf = (name) => (name.match(/\.[^./]+$/)?.[0] || '').toLowerCase();
 
-// The highlight.js language for a code file, or null if it isn't one.
-export const codeLang = (name) => CODE_LANGS[extOf(name)] || null;
+// The highlight.js language for a code file (a path, a name or an ext), or null
+// if it isn't one. hasOwn, so a file named "constructor" isn't a prototype hit.
+export function codeLang(name) {
+  const base = name.split(/[\\/]/).pop();
+  if (Object.hasOwn(CODE_NAMES, base)) return CODE_NAMES[base];
+  const ext = extOf(base);
+  return Object.hasOwn(CODE_LANGS, ext) ? CODE_LANGS[ext] : null;
+}
