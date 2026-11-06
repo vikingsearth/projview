@@ -1,5 +1,8 @@
 # Triggered by pushing a version tag, e.g.  git tag v0.2.3 && git push --tags
-# (tag should match the version in package.json)
+# The tag must match the version in package.json - verify fails the whole
+# release otherwise. A pre-release tag (v1.4.0-rc.1) publishes to npm's `next`
+# dist-tag and never moves the image's `latest`. Order: verify -> npm (tests,
+# publish) -> image -> GitHub Release, so GHCR never gets a version npm lacks.
 name: release
 
 on:
@@ -7,7 +10,28 @@ on:
     tags: ['v*']
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: v
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $pkg"
+            exit 1
+          fi
+          echo "version=$pkg" >> "$GITHUB_OUTPUT"
+          case "$pkg" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
   npm:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,6 +50,7 @@ jobs:
       - run: npm publish --access public
 
   image:
+    needs: [verify, npm]
     runs-on: ubuntu-latest
     permissions:
       contents: read
