@@ -25,5 +25,13 @@ ENV HOST=0.0.0.0 \
     NODE_ENV=production
 EXPOSE 8080
 
+# the app only reads its own files, so it runs as the image's unprivileged
+# node user - not root on a public bind. The files stay root-owned: read-only to it.
+USER node
+
+# up = the page answers. Plain node, as slim images carry no curl / wget.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 8080) + '/').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+
 # preview the bundled docs/ fixtures; --no-open since there's no browser in a container
 CMD ["node", "bin/projview.js", "--demo", "--no-open"]
