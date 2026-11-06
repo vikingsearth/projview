@@ -43,7 +43,8 @@ jobs:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
           cache: npm
-      - run: npm ci
+      # no dependency install scripts in the job that holds the publish token
+      - run: npm ci --ignore-scripts
       - run: npm test
       # authenticates via npm trusted publishing (package settings -> trusted
       # publisher: vikingsearth/projview, release.yml); provenance is automatic
