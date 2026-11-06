@@ -47,7 +47,7 @@ jobs:
       - run: npm test
       # authenticates via npm trusted publishing (package settings -> trusted
       # publisher: vikingsearth/projview, release.yml); provenance is automatic
-      - run: npm publish --access public
+      - run: npm publish --access public --tag ${{ needs.verify.outputs.prerelease == 'true' && 'next' || 'latest' }}
 
   image:
     needs: [verify, npm]
@@ -68,7 +68,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ needs.verify.outputs.prerelease != 'true' }}
       - uses: docker/build-push-action@v6
         with:
           context: .
