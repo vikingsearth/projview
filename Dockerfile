@@ -1,8 +1,10 @@
 # projview demo image for the internal Crucible launchpad.
 # Serves the bundled sample docs as a read-only web app.
-# node:20-slim (Debian) - alpine's bundled npm hits "Exit handler never called"
+# node:22-slim (Debian) - alpine's bundled npm hits "Exit handler never called"
 # on mermaid's large dependency tree, leaving a half-installed node_modules.
-FROM node:22-slim
+# Pinned to a digest (the multi-arch index) so a rebuild is reproducible; bump
+# it deliberately: docker buildx imagetools inspect node:22-slim
+FROM node:22-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d
 
 WORKDIR /app
 
