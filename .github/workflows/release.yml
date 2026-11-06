@@ -76,3 +76,16 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  github-release:
+    needs: [verify, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create the release
+    steps:
+      - run: >-
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"
+          --generate-notes --verify-tag
+          ${{ needs.verify.outputs.prerelease == 'true' && '--prerelease' || '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
